@@ -155,4 +155,16 @@ public static class BasisCalibrationMath
         }
         return ImpliedHeightFromEye(playerEye) > ImpliedHeightFromSpan(playerSpan) * EyeOverSpanPersistBand;
     }
+    public static float SizingEyeHeight(float measuredEye, float span, bool spanGenuine, float statedEye)
+    {
+        if (!EyeHeightLooksLiftPoisoned(measuredEye))
+        {
+            return measuredEye;
+        }
+        if (statedEye > 0f)
+        {
+            return statedEye;
+        }
+        return spanGenuine && ArmSpanLooksUnderMeasured(measuredEye, span) ? Mathf.Max(ImpliedHeightFromSpan(span) * EyeToHeightRatio, BasisHeightDriver.MinPlausibleBodyMeasure) : measuredEye;
+    }
 }

@@ -1384,6 +1384,7 @@
     { "key": "calibration.summary.fit.compromised", "value": "Ajuste: las proporciones de este avatar son difíciles de igualar. Prueba el retoque de tamaño de abajo si aún no te convence." },
     { "key": "calibration.summary.fit.none", "value": "Ajuste: esperando mediciones." },
     { "key": "calibration.summary.differentPerson", "value": "Llevas un tiempo midiendo menos que la altura registrada. Si otra persona ha usado este visor, pulsa «Medirme»." },
+    { "key": "calibration.summary.floorLow", "value": "Tu piso de RV parece estar unos {0} demasiado bajo. Basis corrigió tu tamaño por eso, pero ajustar el piso en tu software de RV da el mejor ajuste." },
     { "key": "calibration.avatarNudge", "value": "Tamaño de este avatar" },
     { "key": "calibration.avatarNudge.tooltip", "value": "Hace más grande o más pequeño solo este avatar. Se recuerda por avatar, así que nunca afecta a tu talla medida ni a ningún otro avatar que lleves. Úsalo cuando las proporciones de un avatar sean demasiado inusuales para el ajuste automático." },
     { "key": "calibration.refit.title", "value": "Ajuste actualizado" },

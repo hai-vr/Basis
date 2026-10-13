@@ -7,12 +7,12 @@ namespace Basis.Tests.Fitting
 {
     public class BasisFitResolverTests
     {
-        static BasisScaleInputs Inputs(BasisSelectedHeightMode mode, float playerEye, float playerSpan, float avatarEye, float avatarSpan, float shoulders = 0.35f, float k = 1f, float deviation = 0.15f)
+        static BasisScaleInputs Inputs(BasisSelectedHeightMode mode, float playerEye, float playerSpan, float avatarEye, float avatarSpan, float shoulders = 0.35f, float k = 1f, float deviation = BasisBodyFitCore.DefaultMaxDeviation)
         {
             return new BasisScaleInputs { Mode = mode, PlayerEye = playerEye, PlayerSpan = playerSpan, AvatarEye = avatarEye, AvatarSpan = avatarSpan, AvatarShoulderWidth = shoulders, AppliedUpScale = k, FitDeviation = deviation, SpanUsable = true };
         }
-        static float StandingEyeInAvatar(in BasisScaleInputs i, in BasisScaleState s) => (i.PlayerEye + i.PlayerEyeOffset + s.GroundingOffset) * s.DeviceScale;
-        static BasisBodyFitMeasurements Body(float playerEye, float playerSpan, float avatarEye, float avatarSpan, float uniformScale)
+        static float StandingEyeInAvatar(in BasisScaleInputs i, in BasisScaleState s) => ((i.PlayerTrackedEye > 0f ? i.PlayerTrackedEye : i.PlayerEye) + i.PlayerEyeOffset + s.GroundingOffset) * s.DeviceScale;
+        static BasisBodyFitMeasurements Body(float playerEye, float playerSpan, float avatarEye, float avatarSpan, float uniformScale, float shoulders = 0.35f)
         {
             return new BasisBodyFitMeasurements
             {
@@ -20,7 +20,7 @@ namespace Basis.Tests.Fitting
                 PlayerArmSpan = playerSpan,
                 AvatarEyeHeight = avatarEye,
                 AvatarArmSpan = avatarSpan,
-                AvatarShoulderWidth = 0.35f,
+                AvatarShoulderWidth = shoulders,
                 UniformScale = uniformScale,
             };
         }
@@ -75,7 +75,7 @@ namespace Basis.Tests.Fitting
             var inputs = Inputs(BasisSelectedHeightMode.ArmSpan, 1.62f, 1.45f, 1.5f, 1.2f);
             BasisScaleState state = BasisScaleResolver.Resolve(inputs);
             Assert.That(state.UniformScale, Is.EqualTo(1.2f / 1.45f).Within(1e-6f));
-            BasisBodyFitResult fit = BasisBodyFitCore.Solve(Body(1.62f, 1.45f, 1.5f, 1.2f, state.UniformScale), 0.15f);
+            BasisBodyFitResult fit = BasisBodyFitCore.Solve(Body(1.62f, 1.45f, 1.5f, 1.2f, state.UniformScale), BasisBodyFitCore.DefaultMaxDeviation);
             Assert.That(fit.HasArmFit, Is.True);
             Assert.That(fit.ArmScale, Is.EqualTo(1f).Within(1e-5f));
         }
@@ -102,9 +102,59 @@ namespace Basis.Tests.Fitting
             float eyeRatio = 1.604f / 1.544f;
             Assert.That(state.UniformScale / eyeRatio, Is.GreaterThanOrEqualTo(1f / 1.05f - 1e-4f));
             Assert.That(StandingEyeInAvatar(inputs, state), Is.EqualTo(1.604f).Within(1e-4f));
-            BasisBodyFitResult fit = BasisBodyFitCore.Solve(Body(1.544f, 1.454f, 1.604f, 1.272f, state.UniformScale), 0.15f);
+            BasisBodyFitResult fit = BasisBodyFitCore.Solve(Body(1.544f, 1.454f, 1.604f, 1.272f, state.UniformScale), BasisBodyFitCore.DefaultMaxDeviation);
+            Assert.That(fit.ArmScale, Is.EqualTo(1f + BasisBodyFitCore.MaxDeviationCeiling).Within(1e-5f), "arms 18% shorter than the player's reach are lengthened by the full 10% and no more");
             float playerArm = (1.454f * state.UniformScale - 0.35f) * 0.5f, avatarArm = (1.272f - 0.35f) * 0.5f * fit.ArmScale;
-            Assert.That(playerArm - avatarArm, Is.LessThan(0.02f), "the hands must reach within 2 cm once the fit and the window have both been used");
+            Assert.That(playerArm - avatarArm, Is.LessThan(0.04f), "past the 10% the hand stops short at full stretch instead of the avatar being reshaped further");
+        }
+        [Test]
+        public void TheArmsAreNeverResizedMoreThanTenPercent([Values(0.55f, 0.8f, 1.25f, 1.9f)] float playerToAvatarArm, [Values(0.15f, 0.5f)] float requestedDeviation)
+        {
+            float u = 1.55f / 1.62f, avatarSpan = 0.35f + (1.45f * u - 0.35f) / playerToAvatarArm;
+            BasisBodyFitResult fit = BasisBodyFitCore.Solve(Body(1.62f, 1.45f, 1.55f, avatarSpan, u), requestedDeviation);
+            Assert.That(fit.HasArmFit, Is.True);
+            Assert.That(Mathf.Abs(fit.ArmScale - 1f), Is.LessThanOrEqualTo(0.1f + 1e-5f), $"player arm x{playerToAvatarArm} of the avatar's, asked for {requestedDeviation:P0}");
+            Assert.That(Mathf.Abs(fit.ArmScale - 1f), Is.EqualTo(0.1f).Within(1e-5f), "every case here is past the cap");
+        }
+        [Test]
+        public void AnImpossibleEyeHeightIsSizedFromTheReach()
+        {
+            float fromReach = 1.479f / BasisCalibrationMath.SpanToHeightRatio * BasisCalibrationMath.EyeToHeightRatio;
+            Assert.That(BasisCalibrationMath.SizingEyeHeight(2.118f, 1.479f, true, 0f), Is.EqualTo(fromReach).Within(1e-4f), "a 2.12 m standing eye with a 1.48 m reach is a VR floor set too low");
+            Assert.That(BasisCalibrationMath.SizingEyeHeight(2.118f, 1.479f, true, 1.62f), Is.EqualTo(1.62f), "a stated height outranks the reach");
+            Assert.That(BasisCalibrationMath.SizingEyeHeight(2.118f, 1.479f, false, 0f), Is.EqualTo(2.118f), "without a measured reach there is nothing better to size from");
+            Assert.That(BasisCalibrationMath.SizingEyeHeight(1.75f, 1.0f, true, 0f), Is.EqualTo(1.75f), "a believable eye height is never shrunk to match a short reach, which may just be bent arms");
+            Assert.That(BasisCalibrationMath.SizingEyeHeight(1.95f, 1.85f, true, 0f), Is.EqualTo(1.95f), "a tall player whose reach agrees is left alone");
+        }
+        [Test]
+        public void ALowVrFloorStillLandsTheEyeAndPutsTheFloorBack([Values(BasisSelectedHeightMode.EyeHeight, BasisSelectedHeightMode.BestFit, BasisSelectedHeightMode.ArmSpan)] BasisSelectedHeightMode mode, [Values(1f, 1.4f)] float k)
+        {
+            float trueEye = 1.6f, span = trueEye / BasisCalibrationMath.EyeToHeightRatio * BasisCalibrationMath.SpanToHeightRatio, floorError = 0.518f;
+            var level = Inputs(mode, trueEye, span, 1.592f, 1.323f, 0.3f, k);
+            var low = level;
+            low.PlayerTrackedEye = trueEye + floorError;
+            low.PlayerEye = BasisCalibrationMath.SizingEyeHeight(low.PlayerTrackedEye, span, true, 0f);
+            BasisScaleState levelState = BasisScaleResolver.Resolve(level), lowState = BasisScaleResolver.Resolve(low);
+            Assert.That(low.PlayerEye, Is.EqualTo(trueEye).Within(1e-4f));
+            Assert.That(lowState.UniformScale, Is.EqualTo(levelState.UniformScale).Within(1e-4f), "a floor error must not change how big the player is");
+            Assert.That(StandingEyeInAvatar(low, lowState), Is.EqualTo(1.592f * k).Within(1e-4f), "the camera still sits on the avatar's eye");
+            float realFloor = (floorError + lowState.GroundingOffset) * lowState.DeviceScale, levelFloor = levelState.GroundingOffset * levelState.DeviceScale;
+            Assert.That(realFloor, Is.EqualTo(levelFloor).Within(1e-4f), "the real floor lands where it would with the VR floor set right");
+        }
+        [Test]
+        public void TheReportedVrSessionIsSizedFromTheReach()
+        {
+            float measuredEye = 2.118261f, span = 1.479412f, avatarEye = 1.592411f, avatarSpan = 1.322879f, shoulders = 0.3f;
+            var inputs = Inputs(BasisSelectedHeightMode.BestFit, BasisCalibrationMath.SizingEyeHeight(measuredEye, span, true, 0f), span, avatarEye, avatarSpan, shoulders);
+            inputs.PlayerTrackedEye = measuredEye;
+            BasisScaleState state = BasisScaleResolver.Resolve(inputs);
+            Assert.That(state.DeviceScale, Is.GreaterThan(0.9f), "was 0.75, which shrank every reach by a quarter");
+            Assert.That(StandingEyeInAvatar(inputs, state), Is.EqualTo(avatarEye).Within(1e-4f));
+            Assert.That(state.GroundingOffset, Is.LessThan(-0.4f), "the play space comes down by the floor error");
+            BasisBodyFitResult fit = BasisBodyFitCore.Solve(Body(inputs.PlayerEye, span, avatarEye, avatarSpan, state.UniformScale, shoulders), BasisBodyFitCore.DefaultMaxDeviation);
+            Assert.That(Mathf.Abs(fit.ArmScale - 1f), Is.LessThanOrEqualTo(BasisBodyFitCore.MaxDeviationCeiling + 1e-5f));
+            float playerArm = (span * state.UniformScale - shoulders) * 0.5f, avatarArm = (avatarSpan - shoulders) * 0.5f * fit.ArmScale;
+            Assert.That(Mathf.Abs(playerArm - avatarArm), Is.LessThan(0.005f), "in a T-pose the avatar's hands land in the controllers");
         }
         [Test]
         public void TorsoFitNeverTouchesTheNeckOrHead()
@@ -123,7 +173,7 @@ namespace Basis.Tests.Fitting
         {
             var inputs = Inputs(mode, 1.62f, 1.45f, 1.55f, 1.45f * (1.55f / 1.62f) * avatarArmRatio);
             BasisScaleState state = BasisScaleResolver.Resolve(inputs);
-            BasisBodyFitResult fit = BasisBodyFitCore.Solve(Body(1.62f, 1.45f, 1.55f, inputs.AvatarSpan, state.UniformScale), 0.15f);
+            BasisBodyFitResult fit = BasisBodyFitCore.Solve(Body(1.62f, 1.45f, 1.55f, inputs.AvatarSpan, state.UniformScale), BasisBodyFitCore.DefaultMaxDeviation);
             Assert.That(fit.HasBodyFit, Is.False, "standing, the hips and head stay where the avatar has them");
             Assert.That(fit.LegScale, Is.EqualTo(1f));
             Assert.That(fit.TorsoScale, Is.EqualTo(1f));

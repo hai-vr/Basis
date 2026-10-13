@@ -78,6 +78,8 @@ public static partial class BasisHeightDriver
 
     public static float DeviceScale = 1f;
     public static float HeightModeGroundingOffset = 0f;
+    public static float SizingEyeHeight => BasisCalibrationMath.SizingEyeHeight(PlayerEyeHeight, PlayerArmSpan, HasGenuinePlayerArmSpan, BasisStatedHeight.ImpliedEyeHeight);
+    public static bool EyeHeightLooksFloorShifted => SizingEyeHeight < PlayerEyeHeight;
     public static float EffectiveAvatarArmSpan
     {
         get
@@ -746,7 +748,8 @@ public static partial class BasisHeightDriver
     public static BasisScaleInputs CurrentScaleInputs()
     {
         bool fitEnabled = BasisSettingsDefaults.FBIKBodyFit.RawValue;
-        bool spanUnderMeasured = HasGenuinePlayerEyeHeight && BasisCalibrationMath.ArmSpanLooksUnderMeasured(PlayerEyeHeight, PlayerArmSpan);
+        float sizingEye = SizingEyeHeight;
+        bool spanUnderMeasured = HasGenuinePlayerEyeHeight && BasisCalibrationMath.ArmSpanLooksUnderMeasured(sizingEye, PlayerArmSpan);
         bool blend = TryGetArmToHeightBlend(out float armToHeightBlend);
         float k = BasisLocalPlayer.Instance?.LocalAvatarDriver?.ScaleAvatarModification != null ? BasisLocalPlayer.Instance.LocalAvatarDriver.ScaleAvatarModification.ApplyScale : AppliedUpScale;
         return new BasisScaleInputs
@@ -757,7 +760,8 @@ public static partial class BasisHeightDriver
             Blend = blend,
             BlendAmount = armToHeightBlend,
             SpanUsable = HasGenuinePlayerArmSpan && !spanUnderMeasured,
-            PlayerEye = SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters),
+            PlayerEye = SanitizePositive(sizingEye, FallbackHeightInMeters),
+            PlayerTrackedEye = SanitizePositive(PlayerEyeHeight, FallbackHeightInMeters),
             PlayerSpan = SanitizePositive(PlayerArmSpan, FallbackHeightInMeters),
             PlayerEyeOffset = PlayerCenterEyeVerticalOffset,
             AvatarEye = SanitizePositive(AvatarEyeHeight, FallbackHeightInMeters),
@@ -777,8 +781,15 @@ public static partial class BasisHeightDriver
             s_lastScaleFitStatus = state.BestFit.Status;
             BasisDebug.Log($"Scale fit {state.BestFit.Status} from {state.BestFit.UsedCount} measurement(s): scale {state.BestFit.Scale:F4} | leftover for the stretcher — eye {state.BestFit.EyeResidual:F3} arm {state.BestFit.ArmResidual:F3}", BasisDebug.LogTag.Avatar);
         }
+        float sizingEye = SizingEyeHeight;
+        if (sizingEye < PlayerEyeHeight && !Mathf.Approximately(sizingEye, s_lastLoggedSizingEye))
+        {
+            s_lastLoggedSizingEye = sizingEye;
+            BasisDebug.LogWarning($"Your eye height reads {PlayerEyeHeight:F3} m, taller than anyone standing, so the VR floor is likely {PlayerEyeHeight - sizingEye:F2} m too low. Sizing you from your {(BasisStatedHeight.IsSet ? "stated height" : "arm span")} as a {sizingEye:F3} m eye height and lowering the play space to match.", BasisDebug.LogTag.Avatar);
+        }
     }
     private static BasisScaleFitStatus s_lastScaleFitStatus = BasisScaleFitStatus.NoData;
+    private static float s_lastLoggedSizingEye;
 
     public static bool TryGetArmToHeightBlend(out float blend)
     {
@@ -862,7 +873,7 @@ public static partial class BasisHeightDriver
         // Denominator breakdown so a systematic eye-height bias stays readable in-headset: compare the
         // true-eye estimate against your tape-measured standing eye height.
         BasisDebug.Log(
-            $"Eye-height denominator (true standing eye estimate): {denominator:F3}m = raw {SelectedUnScaledPlayerHeight:F3} " +
+            $"Eye-height denominator (true standing eye estimate): {denominator:F3}m = eye {SelectedUnScaledPlayerHeight:F3} (measured {PlayerEyeHeight:F3}) " +
             $"+ eye offset {eyeScaleOffset:F3} (device->eye {PlayerCenterEyeVerticalOffset:F3}" +
             $"{(blendHeights ? $", weighted {Mathf.Clamp01(1f - armToHeightBlend):P0} by the arm-to-height ratio" : "")})",
             BasisDebug.LogTag.Avatar

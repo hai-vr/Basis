@@ -4,7 +4,7 @@ namespace Basis.IK
 {
     public static class BasisBodyFitCore
     {
-        public const float DefaultMaxDeviation = 0.15f, MaxDeviationCeiling = 0.5f;
+        public const float DefaultMaxDeviation = 0.1f, MaxDeviationCeiling = 0.1f;
         const float minSegmentMeters = 0.05f, minRatio = 0.5f, maxRatio = 2f, minHipFraction = 0.35f;
         const float maxHipFraction = 0.75f;
         public static string Describe(BasisBodyFitStatus status) => status switch

@@ -157,12 +157,14 @@ namespace Basis.BasisUI
             public readonly string Title;
             public readonly string Value;
             public readonly bool PlainValue;
+            public readonly bool Wrap;
 
-            public DetailRow(string title, string value, bool plainValue = false)
+            public DetailRow(string title, string value, bool plainValue = false, bool wrap = false)
             {
                 Title = title;
                 Value = value;
                 PlainValue = plainValue;
+                Wrap = wrap;
             }
         }
 
@@ -173,6 +175,8 @@ namespace Basis.BasisUI
         private const float DetailTopGap = 16f;
         private const float DetailBottomInset = 8f;
         private const float DetailSideInset = 32f;
+
+        private PanelElementDescriptor _details;
 
         /// <summary>
         /// Puts a scrollable list of title/value rows between the description and the buttons, and
@@ -188,25 +192,17 @@ namespace Basis.BasisUI
 
             RectTransform host = Descriptor.DescriptionLabel.rectTransform.parent as RectTransform;
             if (host == null) return;
+            if (_details != null) _details.ReleaseInstance();
 
             float textWidth = Mathf.Max(100f, Data.PanelSize.x - 32f - 64f);
             float questionHeight = Mathf.Clamp(
                 Mathf.Ceil(Descriptor.DescriptionLabel.GetPreferredValues(Description ?? string.Empty, textWidth, 0f).y),
                 40f, 200f);
 
-            float desiredList = Mathf.Clamp(rows.Count * DetailRowHeight + DetailBottomInset, DetailListMinHeight, DetailListMaxHeight);
-            float panelHeight = Mathf.Clamp(220f + questionHeight + DetailTopGap + desiredList + DetailBottomInset,
-                Data.PanelSize.y, DetailPanelMaxHeight);
-            if (panelHeight > Data.PanelSize.y)
-            {
-                PanelData data = Data;
-                data.PanelSize = new Vector2(data.PanelSize.x, panelHeight);
-                Data = data;
-                rectTransform.sizeDelta = data.PanelSize;
-                BasisGraphicUIRayCaster.SetBoxColliderToRectTransform(gameObject);
-            }
+            GrowForDetails(questionHeight, Mathf.Clamp(rows.Count * DetailRowHeight + DetailBottomInset, DetailListMinHeight, DetailListMaxHeight));
 
             PanelElementDescriptor scroll = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.ScrollViewVertical, host);
+            _details = scroll;
             RectTransform scrollArea = scroll.rectTransform;
             scrollArea.anchorMin = Vector2.zero;
             scrollArea.anchorMax = Vector2.one;
@@ -228,9 +224,10 @@ namespace Basis.BasisUI
                 }
             }
 
+            List<RectTransform> wrapped = null;
             for (int Index = 0; Index < rows.Count; Index++)
             {
-                PanelElementDescriptor row = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Entry, content);
+                PanelElementDescriptor row = PanelElementDescriptor.CreateNew(rows[Index].Wrap ? PanelElementDescriptor.ElementStyles.Group : PanelElementDescriptor.ElementStyles.Entry, content);
                 row.SetTitle(rows[Index].Title);
                 if (rows[Index].PlainValue && row.HasDescription)
                 {
@@ -239,16 +236,33 @@ namespace Basis.BasisUI
                 }
                 row.SetDescription(rows[Index].Value);
                 ReleaseControlSlot(row);
+                if (rows[Index].Wrap) (wrapped ??= new List<RectTransform>()).Add(row.HasDescription ? row.DescriptionLabel.rectTransform : row.rectTransform);
             }
 
             if (content != null)
             {
                 LayoutRebuilder.ForceRebuildLayoutImmediate(content);
+                if (wrapped != null)
+                {
+                    foreach (RectTransform label in wrapped) PanelElementDescriptor.RebuildLayoutChain(label, content);
+                    GrowForDetails(questionHeight, LayoutUtility.GetPreferredHeight(content) + DetailBottomInset);
+                }
             }
             if (scrollView != null)
             {
                 scrollView.verticalNormalizedPosition = 1f;
             }
+        }
+
+        private void GrowForDetails(float questionHeight, float listHeight)
+        {
+            float panelHeight = Mathf.Clamp(220f + questionHeight + DetailTopGap + listHeight + DetailBottomInset, Data.PanelSize.y, DetailPanelMaxHeight);
+            if (panelHeight <= Data.PanelSize.y) return;
+            PanelData data = Data;
+            data.PanelSize = new Vector2(data.PanelSize.x, panelHeight);
+            Data = data;
+            rectTransform.sizeDelta = data.PanelSize;
+            BasisGraphicUIRayCaster.SetBoxColliderToRectTransform(gameObject);
         }
 
         /// <summary>

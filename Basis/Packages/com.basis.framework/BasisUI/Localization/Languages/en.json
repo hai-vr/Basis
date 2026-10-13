@@ -4787,6 +4787,10 @@
       "value": "You have been measuring shorter than the size on record for a while. If someone else used this headset, press Measure Me."
     },
     {
+      "key": "calibration.summary.floorLow",
+      "value": "Your VR floor looks about {0} too low. Basis corrected your size for it, but setting the floor in your VR software gives the best fit."
+    },
+    {
       "key": "calibration.avatarNudge",
       "value": "This Avatar's Size"
     },
@@ -14632,7 +14636,7 @@
     },
     {
       "key": "settings.cilboxPermissions.cap.storage",
-      "value": "Save data on your computer"
+      "value": "Read and change saved data, including your sign-in key"
     },
     {
       "key": "settings.cilboxPermissions.cap.input",
@@ -14673,6 +14677,134 @@
     {
       "key": "settings.cilboxPermissions.cap.other",
       "value": "Use other features scripts can't normally use"
+    },
+    {
+      "key": "settings.cilboxPermissions.prompt.moreInfo",
+      "value": "More Info"
+    },
+    {
+      "key": "settings.cilboxPermissions.review.in",
+      "value": "{0}: {1}"
+    },
+    {
+      "key": "settings.cilboxPermissions.review.unplaced",
+      "value": "Also uses: {0}"
+    },
+    {
+      "key": "settings.cilboxPermissions.review.blocked",
+      "value": "Never allowed"
+    },
+    {
+      "key": "settings.cilboxPermissions.review.blocked.why",
+      "value": "It also tries to use things scripts can never use. These stay blocked whatever you choose, so parts of it may not work."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.openWebPages",
+      "value": "Can open websites in your web browser, outside of Basis."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.quit",
+      "value": "Can close Basis at any time without asking."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.appControl",
+      "value": "Can change how Basis itself runs and read details about it, such as where it keeps files on your computer, which can include your user name."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.files",
+      "value": "Can read, create, change or delete files on your computer, not only files that belong to Basis."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.internet",
+      "value": "Can send and receive data from any server without asking you. Any server it reaches sees your IP address and whatever the script sends it."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.programs",
+      "value": "Can start other programs on your computer, and those programs can do anything you can."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.sandboxEscape",
+      "value": "Can reach code that the script sandbox keeps away from scripts, which can get around every other limit on this list."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.microphone",
+      "value": "Can listen to and record your microphone."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.webcam",
+      "value": "Can turn on your webcam and see what it sees."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.scenes",
+      "value": "Can load or unload worlds and scenes, which can move you somewhere else or break the world you are in."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.yourPlayer",
+      "value": "Can take direct control of your own player, such as moving, teleporting or freezing you."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.localMedia",
+      "value": "Can open video and audio files stored on your computer."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.screenshots",
+      "value": "Can save pictures of what you see to your computer."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.mediaUrls",
+      "value": "Can load video, audio or subtitles from any address without asking first. The server it loads from sees your IP address."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.deviceInfo",
+      "value": "Can read details about your computer or headset, such as its hardware, system, user name or a device ID that stays the same between visits."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.background",
+      "value": "Can run work in the background, outside the time limits that normally stop scripts from slowing down or freezing Basis."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.storage",
+      "value": "Can read and change data that Basis and other content save on this computer. That includes the key that proves who you are to servers, so this content could sign in as you somewhere else."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.input",
+      "value": "Can read your keyboard, mouse and controllers directly, even while you type into Basis menus."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.addComponents",
+      "value": "Can add built-in components to objects, including kinds scripts are not normally allowed to create."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.graphics",
+      "value": "Can change your graphics and display settings, such as resolution and quality."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.cameras",
+      "value": "Can control cameras, including your view and what cameras capture."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.physics",
+      "value": "Can change physics for everything around you, such as gravity."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.audio",
+      "value": "Can change how all of Basis sounds, such as the overall volume or audio settings."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.basisInternals",
+      "value": "Can use parts of Basis that scripts are normally kept away from. What that allows depends on the part, so check the names below."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.messages",
+      "value": "Can call functions on other objects by name, including parts of Basis, which skips the checks scripts normally go through."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.invoke",
+      "value": "Can call functions indirectly, which can skip the checks scripts normally go through."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.other",
+      "value": "Uses parts of Unity or .NET that are not on the list of things scripts may use. Check the names below to see what they are."
     },
     {
       "key": "ui.option.on",

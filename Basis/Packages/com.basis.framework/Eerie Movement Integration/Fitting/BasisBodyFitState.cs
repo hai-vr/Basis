@@ -152,14 +152,14 @@ public static class BasisBodyFitSummary
 {
     public struct Facts
     {
-        public float BodyHeight;
+        public float BodyHeight, FloorShift;
         public BasisHeightDriver.BasisBodyMeasurementSource HeightSource;
         public float Reach;
         public BasisHeightDriver.BasisBodyMeasurementSource ReachSource;
         public bool ReachMeasured;
         public float ReachConfidence;
         public bool HasAvatar;
-        public float AvatarArmDifference, AvatarLegDifference;
+        public float AvatarArmDifference, AvatarLegDifference, ArmFitLimit;
         public bool ArmsFitted, LegsFitted;
         public BasisScaleFitStatus FitStatus;
         public float ScaleDeviation;
@@ -169,7 +169,8 @@ public static class BasisBodyFitSummary
     {
         var facts = new Facts
         {
-            BodyHeight = BasisCalibrationMath.ImpliedHeightFromEye(BasisHeightDriver.PlayerEyeHeight),
+            BodyHeight = BasisCalibrationMath.ImpliedHeightFromEye(BasisHeightDriver.SizingEyeHeight),
+            FloorShift = Mathf.Max(0f, BasisHeightDriver.PlayerEyeHeight - BasisHeightDriver.SizingEyeHeight),
             HeightSource = BasisHeightDriver.EyeHeightSource,
             Reach = BasisHeightDriver.PlayerArmSpan,
             ReachSource = BasisHeightDriver.ArmSpanSource,
@@ -180,6 +181,7 @@ public static class BasisBodyFitSummary
 
         BasisBodyFitResult fit = Basis.Scripts.Drivers.BasisLocalRigDriver.AppliedBodyFit;
         facts.ArmsFitted = fit.HasArmFit;
+        facts.ArmFitLimit = Mathf.Clamp(BasisSettingsDefaults.FBIKBodyFitMaxDeviation.RawValue, 0f, BasisBodyFitCore.MaxDeviationCeiling);
         facts.LegsFitted = fit.HasBodyFit;
 
         BasisScaleFitResult scaleFit = BasisHeightDriver.LastScaleFit;
@@ -202,6 +204,10 @@ public static class BasisBodyFitSummary
         sb.Append(BasisLocalization.Get("calibration.summary.height")).Append(' ')
           .Append(BasisStatedHeight.Format(facts.BodyHeight)).Append("  —  ")
           .Append(DescribeSource(facts.HeightSource)).Append('\n');
+        if (facts.FloorShift > 0f)
+        {
+            sb.Append(string.Format(BasisLocalization.Get("calibration.summary.floorLow"), BasisStatedHeight.Format(facts.FloorShift))).Append('\n');
+        }
 
         sb.Append(BasisLocalization.Get("calibration.summary.reach")).Append(' ');
         if (facts.ReachMeasured)
@@ -244,7 +250,7 @@ public static class BasisBodyFitSummary
         }
         string key = arm > 0f ? "calibration.summary.avatar.armsLonger" : "calibration.summary.avatar.armsShorter";
         string phrase = string.Format(BasisLocalization.Get(key), Mathf.Abs(arm));
-        string handling = facts.ArmsFitted ? BasisLocalization.Get("calibration.summary.avatar.adjusted") : BasisLocalization.Get("calibration.summary.avatar.beyondAdjustment");
+        string handling = facts.ArmsFitted && Mathf.Abs(arm) <= facts.ArmFitLimit ? BasisLocalization.Get("calibration.summary.avatar.adjusted") : BasisLocalization.Get("calibration.summary.avatar.beyondAdjustment");
         return $"{phrase} {handling}";
     }
     static string DescribeFit(in Facts facts)

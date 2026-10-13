@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Basis.BasisUI;
@@ -33,6 +34,7 @@ namespace Cilbox
 		{
 			public string[] Items;
 			public string[] Blocked;
+			public List<BasisCilboxPermissionText.Use> Uses;
 			public bool Failed;
 		}
 
@@ -42,6 +44,8 @@ namespace Cilbox
 			public string Name;
 			public string Kind;
 			public string[] Items;
+			public string[] Blocked;
+			public List<BasisCilboxPermissionText.Use> Uses;
 			public BasisNotification Notice;
 			public readonly List<CilboxBasisCommon> Boxes = new List<CilboxBasisCommon>();
 			public readonly List<CilboxProxy> Held = new List<CilboxProxy>();
@@ -161,7 +165,7 @@ namespace Cilbox
 			box.consentState = State.Pending;
 			if (!requests.TryGetValue(hash, out Request request))
 			{
-				request = new Request { Hash = hash, Name = NameOf(box), Kind = KindOf(box), Items = result.Items };
+				request = new Request { Hash = hash, Name = NameOf(box), Kind = KindOf(box), Items = result.Items, Blocked = result.Blocked, Uses = result.Uses };
 				requests[hash] = request;
 				queue.Enqueue(hash);
 				BasisDeviceManagement.EnqueueOnMainThread(ShowNext);
@@ -194,7 +198,187 @@ namespace Cilbox
 			scan.Items.CopyTo(result.Items);
 			result.Blocked = new string[scan.Blocked.Count];
 			scan.Blocked.CopyTo(result.Blocked);
+			if (!result.Failed && result.Items.Length > 0) result.Uses = Uses(box, scan);
 			return result;
+		}
+
+		private static List<BasisCilboxPermissionText.Use> Uses(CilboxBasisCommon box, Scan scan)
+		{
+			List<BasisCilboxPermissionText.Use> uses = new List<BasisCilboxPermissionText.Use>();
+			if (box.classesList == null) return uses;
+			HashSet<string> wanted = new HashSet<string>(scan.Items, StringComparer.Ordinal);
+			wanted.UnionWith(scan.Blocked);
+			HashSet<(string, string, string)> seen = new HashSet<(string, string, string)>();
+			Dictionary<uint, List<(string Item, string Code)>> tokens = new Dictionary<uint, List<(string Item, string Code)>>();
+			List<(string Item, string Code)> found = new List<(string Item, string Code)>();
+			try
+			{
+				foreach (CilboxClass cls in box.classesList)
+				{
+					if (cls == null) continue;
+					found.Clear();
+					AddTypes(found, wanted, cls.staticFieldTypes);
+					AddTypes(found, wanted, cls.instanceFieldTypes);
+					Record(uses, seen, found, Where(cls.className, null));
+					if (cls.methods == null) continue;
+					foreach (CilboxMethod method in cls.methods)
+					{
+						if (method == null) continue;
+						found.Clear();
+						AddTypes(found, wanted, method.typeParameters);
+						AddTypes(found, wanted, method.typeLocals);
+						if (method.exceptionClauses != null)
+						{
+							foreach (CilboxExceptionHandlingClause clause in method.exceptionClauses)
+							{
+								if (clause != null) AddType(found, wanted, clause.CatchType, null, 0);
+							}
+						}
+						Walk(box, method.byteCode, wanted, tokens, found);
+						Record(uses, seen, found, Where(cls.className, method.methodName));
+					}
+				}
+			}
+			catch (Exception e)
+			{
+				Debug.LogWarning($"[Cilbox] Could not work out where the scripts in {NameOf(box)} use the permissions they ask for: {e.Message}");
+			}
+			return uses;
+		}
+
+		private static void Walk(CilboxBasisCommon box, byte[] code, HashSet<string> wanted, Dictionary<uint, List<(string Item, string Code)>> tokens, List<(string Item, string Code)> found)
+		{
+			if (code == null || box.metadatas == null) return;
+			int at = 0;
+			while (at < code.Length)
+			{
+				CilboxUtil.OpCodes.OperandType operand = CilboxUtil.OpCodes.ReadOpCode(code, ref at).OperandType;
+				if (operand == CilboxUtil.OpCodes.OperandType.InlineSwitch)
+				{
+					if (at + 4 > code.Length) return;
+					uint cases = (uint)CilboxUtil.BytecodePullLiteral(code, ref at, 4);
+					if (cases > (uint)(code.Length - at) / 4) return;
+					at += (int)cases * 4;
+					continue;
+				}
+				int length = CilboxUtil.OpCodes.OperandLength[(int)operand];
+				if (operand != CilboxUtil.OpCodes.OperandType.InlineMethod && operand != CilboxUtil.OpCodes.OperandType.InlineField && operand != CilboxUtil.OpCodes.OperandType.InlineType)
+				{
+					at += length;
+					continue;
+				}
+				if (at + 4 > code.Length) return;
+				uint token = (uint)CilboxUtil.BytecodePullLiteral(code, ref at, 4);
+				if (!tokens.TryGetValue(token, out List<(string Item, string Code)> pairs))
+				{
+					pairs = TokenUses(box, token, wanted);
+					tokens[token] = pairs;
+				}
+				found.AddRange(pairs);
+			}
+		}
+
+		private static List<(string Item, string Code)> TokenUses(CilboxBasisCommon box, uint token, HashSet<string> wanted)
+		{
+			List<(string Item, string Code)> pairs = new List<(string Item, string Code)>();
+			CilMetadataTokenInfo info = token < box.metadatas.Length ? box.metadatas[token] : null;
+			if (info == null) return pairs;
+			if (info.nativeMethod != null && info.nativeMethod.DeclaringType != null)
+			{
+				MethodBase method = info.nativeMethod;
+				string call = CallOf(method);
+				Add(pairs, wanted, BasisCilboxPermissionText.MethodPrefix + Cilbox.GetSanitizedTypeName(method.DeclaringType) + "." + method.Name, call);
+				AddType(pairs, wanted, method.DeclaringType, call, 0);
+				foreach (ParameterInfo parameter in method.GetParameters()) AddType(pairs, wanted, parameter.ParameterType, null, 0);
+				if (method is MethodInfo function) AddType(pairs, wanted, function.ReturnType, null, 0);
+				if (method.IsGenericMethod)
+				{
+					foreach (Type argument in method.GetGenericArguments()) AddType(pairs, wanted, argument, null, 0);
+				}
+			}
+			else if (info.nativeField != null && info.nativeField.DeclaringType != null)
+			{
+				FieldInfo field = info.nativeField;
+				string access = ShortType(field.DeclaringType) + "." + field.Name;
+				Add(pairs, wanted, BasisCilboxPermissionText.FieldPrefix + Cilbox.GetSanitizedTypeName(field.DeclaringType) + "." + field.Name, access);
+				AddType(pairs, wanted, field.DeclaringType, access, 0);
+				AddType(pairs, wanted, field.FieldType, null, 0);
+			}
+			else
+			{
+				AddType(pairs, wanted, info.nativeType, null, 0);
+				AddType(pairs, wanted, info.opaque as Type, null, 0);
+			}
+			return pairs;
+		}
+
+		private static void AddTypes(List<(string Item, string Code)> pairs, HashSet<string> wanted, Type[] types)
+		{
+			if (types == null) return;
+			foreach (Type type in types) AddType(pairs, wanted, type, null, 0);
+		}
+
+		private static void AddType(List<(string Item, string Code)> pairs, HashSet<string> wanted, Type type, string code, int depth)
+		{
+			if (type == null || type.IsGenericParameter || depth > 8) return;
+			if (type.HasElementType)
+			{
+				if (type.IsPointer && type.FullName != null) Add(pairs, wanted, BasisCilboxPermissionText.TypePrefix + type.FullName, code ?? ShortType(type));
+				AddType(pairs, wanted, type.GetElementType(), code, depth + 1);
+				return;
+			}
+			if (type.FullName != null) Add(pairs, wanted, BasisCilboxPermissionText.TypePrefix + Cilbox.GetSanitizedTypeName(type), code ?? ShortType(type));
+			if (!type.IsGenericType) return;
+			foreach (Type argument in type.GetGenericArguments()) AddType(pairs, wanted, argument, null, depth + 1);
+		}
+
+		private static void Add(List<(string Item, string Code)> pairs, HashSet<string> wanted, string item, string code)
+		{
+			if (wanted.Contains(item)) pairs.Add((item, code));
+		}
+
+		private static void Record(List<BasisCilboxPermissionText.Use> uses, HashSet<(string, string, string)> seen, List<(string Item, string Code)> found, string where)
+		{
+			foreach ((string item, string code) in found)
+			{
+				if (seen.Add((item, where, code))) uses.Add(new BasisCilboxPermissionText.Use(item, where, code));
+			}
+		}
+
+		private static string CallOf(MethodBase method)
+		{
+			string owner = ShortType(method.DeclaringType);
+			if (method.IsConstructor) return "new " + owner + "()";
+			if (method.IsSpecialName && method.Name.StartsWith("get_", StringComparison.Ordinal)) return owner + "." + method.Name.Substring(4);
+			if (method.IsSpecialName && method.Name.StartsWith("set_", StringComparison.Ordinal)) return owner + "." + method.Name.Substring(4) + " =";
+			return owner + "." + method.Name + "()";
+		}
+
+		private static string ShortType(Type type)
+		{
+			string name = type.FullName != null ? Cilbox.GetSanitizedTypeName(type) : type.Name;
+			return name.Substring(name.LastIndexOf('.') + 1).Replace('+', '.');
+		}
+
+		private static string Where(string className, string methodName)
+		{
+			string type = className ?? string.Empty, member = methodName;
+			int generated = type.IndexOf("+<", StringComparison.Ordinal);
+			if (generated >= 0)
+			{
+				string inner = Angled(type, generated + 1);
+				type = type.Substring(0, generated);
+				if (!string.IsNullOrEmpty(inner)) member = inner;
+			}
+			if (member != null && member.StartsWith("<", StringComparison.Ordinal)) member = Angled(member, 0);
+			type = type.Substring(type.LastIndexOf('.') + 1).Replace('+', '.');
+			return string.IsNullOrEmpty(member) || member == ".ctor" || member == ".cctor" ? type : type + "." + member;
+		}
+
+		private static string Angled(string text, int open)
+		{
+			int close = text.IndexOf('>', open + 1);
+			return close > open + 1 ? text.Substring(open + 1, close - open - 1) : null;
 		}
 
 		internal static bool Permits(CilboxBasisCommon box, string item)
@@ -237,7 +421,7 @@ namespace Cilbox
 					continue;
 				}
 				showing = hash;
-				BasisCilboxConsentPrompt.Show(request.Name, request.Kind, request.Items, answer => Answer(hash, answer), notice => Deferred(hash, notice));
+				BasisCilboxConsentPrompt.Show(request.Name, request.Kind, request.Items, request.Blocked, request.Uses, answer => Answer(hash, answer), notice => Deferred(hash, notice));
 				return;
 			}
 		}

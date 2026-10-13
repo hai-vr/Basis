@@ -8,7 +8,7 @@ public partial class SMModuleSitStand : BasisSettingsBase
     public static bool IsSteatedMode = false;
     public static float MissingHeightDelta = 0;
     public static float SeatedMeasuredEyeHeight = 0;
-    public static float SeatedTargetEyeHeight => BasisHeightDriver.HasGenuinePlayerEyeHeight ? BasisHeightDriver.PlayerEyeHeight : BasisStatedHeight.IsSet ? BasisStatedHeight.ImpliedEyeHeight : BasisHeightDriver.FallbackHeightInMeters;
+    public static float SeatedTargetEyeHeight => BasisHeightDriver.HasGenuinePlayerEyeHeight ? BasisHeightDriver.SizingEyeHeight : BasisStatedHeight.IsSet ? BasisStatedHeight.ImpliedEyeHeight : BasisHeightDriver.FallbackHeightInMeters;
 
     /// <summary>
     /// The persisted seatedmode setting must be re-applied once the local player actually exists:

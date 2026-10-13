@@ -1384,6 +1384,7 @@
     { "key": "calibration.summary.fit.compromised", "value": "Pasvorm: de verhoudingen van deze avatar zijn lastig te evenaren. Probeer de maatcorrectie hieronder als het nog steeds niet klopt." },
     { "key": "calibration.summary.fit.none", "value": "Pasvorm: wachten op metingen." },
     { "key": "calibration.summary.differentPerson", "value": "Je meet al een tijdje kleiner dan de vastgelegde maat. Als iemand anders deze headset gebruikt heeft, druk op 'Meet mij'." },
+    { "key": "calibration.summary.floorLow", "value": "Je VR-vloer lijkt ongeveer {0} te laag te liggen. Basis heeft je grootte daarvoor gecorrigeerd, maar de vloer instellen in je VR-software geeft de beste pasvorm." },
     { "key": "calibration.avatarNudge", "value": "Maat van deze avatar" },
     { "key": "calibration.avatarNudge.tooltip", "value": "Maakt alleen deze avatar groter of kleiner. Wordt per avatar onthouden en beïnvloedt dus nooit je gemeten maat of andere avatars die je draagt. Gebruik het wanneer de verhoudingen van een avatar te ongewoon zijn voor de automatische pasvorm." },
     { "key": "calibration.refit.title", "value": "Pasvorm bijgewerkt" },

@@ -229,7 +229,7 @@ namespace Basis.Scripts.Drivers
             }
             var measurements = new BasisBodyFitMeasurements
             {
-                PlayerEyeHeight = BasisHeightDriver.PlayerEyeHeight, PlayerArmSpan = BasisHeightDriver.PlayerArmSpan, AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight, AvatarArmSpan = BasisHeightDriver.AvatarArmSpan, AvatarShoulderWidth = BasisHeightDriver.AvatarShoulderWidth,
+                PlayerEyeHeight = BasisHeightDriver.SizingEyeHeight, PlayerArmSpan = BasisHeightDriver.PlayerArmSpan, AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight, AvatarArmSpan = BasisHeightDriver.AvatarArmSpan, AvatarShoulderWidth = BasisHeightDriver.AvatarShoulderWidth,
 
                 UniformScale = BasisHeightDriver.AppliedUniformScale,
             };

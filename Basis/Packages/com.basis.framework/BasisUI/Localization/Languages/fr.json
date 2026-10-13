@@ -1384,6 +1384,7 @@
     { "key": "calibration.summary.fit.compromised", "value": "Ajustement : les proportions de cet avatar sont difficiles à reproduire. Utilisez le réglage de taille ci-dessous si cela ne va toujours pas." },
     { "key": "calibration.summary.fit.none", "value": "Ajustement : en attente de mesures." },
     { "key": "calibration.summary.differentPerson", "value": "Vous êtes mesuré plus petit que la taille enregistrée depuis un moment. Si quelqu'un d'autre a utilisé ce casque, appuyez sur « Me mesurer »." },
+    { "key": "calibration.summary.floorLow", "value": "Votre sol VR semble trop bas d'environ {0}. Basis a corrigé votre taille en conséquence, mais régler le sol dans votre logiciel VR donne le meilleur ajustement." },
     { "key": "calibration.avatarNudge", "value": "Taille de cet avatar" },
     { "key": "calibration.avatarNudge.tooltip", "value": "Agrandit ou réduit uniquement cet avatar. Mémorisé par avatar, cela n'affecte donc jamais votre taille mesurée ni les autres avatars que vous portez. À utiliser quand les proportions d'un avatar sont trop atypiques pour l'ajustement automatique." },
     { "key": "calibration.refit.title", "value": "Ajustement mis à jour" },

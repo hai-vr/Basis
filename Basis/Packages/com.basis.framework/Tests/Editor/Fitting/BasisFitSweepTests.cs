@@ -230,6 +230,46 @@ namespace Basis.Tests.Fitting
             }
         }
         [Test]
+        public void ALowVrFloorFitsLikeALevelOne()
+        {
+            var scenarios = new List<BasisFitScenario>();
+            foreach (BasisSelectedHeightMode mode in new[] { BasisSelectedHeightMode.EyeHeight, BasisSelectedHeightMode.BestFit })
+            {
+                foreach (BasisFitTrackers trackers in new[] { BasisFitTrackers.None, BasisFitTrackers.Hips })
+                {
+                    foreach (BasisFitBodySpec player in new[] { BasisFitBodies.Players[0], BasisFitBodies.Players[1], BasisFitBodies.Players[8] })
+                    {
+                        foreach (BasisFitBodySpec avatar in new[] { BasisFitBodies.Realistic, BasisFitBodies.Avatars[2], BasisFitBodies.Avatars[3], BasisFitBodies.Avatars[14] })
+                        {
+                            foreach (float floor in new[] { 0f, 0.5f })
+                            {
+                                BasisFitScenario s = Scenario(BasisFitPipeline.Current, mode, trackers, player, avatar);
+                                s.FloorError = floor;
+                                scenarios.Add(s);
+                            }
+                        }
+                    }
+                }
+            }
+            List<Row> rows = Run(scenarios);
+            Report("low_floor", rows);
+            var failures = new List<string>();
+            Check(rows.Where(r => r.Scenario.FloorError > 0f).ToList(), failures, feetFromFloor: true);
+            foreach (Row low in rows.Where(r => r.Scenario.FloorError > 0f && r.Pose == BasisFitPose.TPose))
+            {
+                Row level = rows.First(r => r.Scenario.FloorError == 0f && r.Pose == BasisFitPose.TPose && r.Scenario.Mode == low.Scenario.Mode && r.Scenario.Trackers == low.Scenario.Trackers && r.Scenario.Player.Name == low.Scenario.Player.Name && r.Scenario.Avatar.Name == low.Scenario.Avatar.Name);
+                BasisFitBodySpec p = low.Scenario.Player;
+                float estimateError = Math.Abs(p.EyeY / BasisCalibrationMath.SizingEyeHeight(p.EyeY + low.Scenario.FloorError, p.WristSpan, true, 0f) - 1f);
+                float change = low.Setup.DeviceScale / level.Setup.DeviceScale - 1f;
+                if (Math.Abs(change) > estimateError + 0.01f || Math.Abs(change) > 0.08f)
+                {
+                    failures.Add($"{low.Scenario.Label}: a 0.5 m low floor changed the player's size {change:P1} (reach estimate off by {estimateError:P1})");
+                }
+                TestContext.WriteLine($"{low.Scenario.Label}: size change {change:P1}, T-pose hand {low.Metrics.HandError * 100f:0.0} cm (level {level.Metrics.HandError * 100f:0.0} cm), arm scale {low.Setup.ArmScale:0.###}");
+            }
+            Assert.That(failures, Is.Empty, string.Join("\n", failures.Take(60)));
+        }
+        [Test]
         public void TiltingTheHeadMovesTheBodySmoothly([Values(false, true)] bool desktop)
         {
             var failures = new List<string>();

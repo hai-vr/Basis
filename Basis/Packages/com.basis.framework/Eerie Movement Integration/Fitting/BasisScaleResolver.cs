@@ -5,7 +5,7 @@ public struct BasisScaleInputs
 {
     public BasisSelectedHeightMode Mode;
     public bool Desktop, Seated, Blend, SpanUsable;
-    public float BlendAmount, PlayerEye, PlayerSpan, PlayerEyeOffset, AvatarEye, AvatarSpan, AvatarShoulderWidth, AppliedUpScale, FitDeviation;
+    public float BlendAmount, PlayerEye, PlayerTrackedEye, PlayerSpan, PlayerEyeOffset, AvatarEye, AvatarSpan, AvatarShoulderWidth, AppliedUpScale, FitDeviation;
 }
 public struct BasisScaleState
 {
@@ -23,7 +23,7 @@ public static class BasisScaleResolver
         s.Mode = i.Desktop ? BasisSelectedHeightMode.EyeHeight : i.Mode == BasisSelectedHeightMode.Auto ? BasisSelectedHeightMode.BestFit : i.Mode;
         s.Blended = i.Blend && !i.Desktop;
         float avatarEye = Positive(i.AvatarEye, BasisHeightDriver.FallbackHeightInMeters), playerEye = Positive(i.PlayerEye, BasisHeightDriver.FallbackHeightInMeters);
-        float avatarSpan = Positive(i.AvatarSpan, avatarEye), playerSpan = Positive(i.PlayerSpan, playerEye), k = Positive(i.AppliedUpScale, 1f), fullOffset = Finite(i.PlayerEyeOffset);
+        float avatarSpan = Positive(i.AvatarSpan, avatarEye), playerSpan = Positive(i.PlayerSpan, playerEye), k = Positive(i.AppliedUpScale, 1f), fullOffset = Finite(i.PlayerEyeOffset), trackedEye = Positive(i.PlayerTrackedEye, playerEye);
         if (s.Blended)
         {
             float blend = Mathf.Clamp(i.BlendAmount, BasisCalibrationMath.ArmToHeightBlendMin, BasisCalibrationMath.ArmToHeightBlendMax);
@@ -55,7 +55,7 @@ public static class BasisScaleResolver
         s.UniformScale = denominator > 1e-5f ? Positive(s.AvatarMetric / denominator, 1f) : 1f;
         s.DeviceScale = s.UniformScale * k;
         s.ScaledAvatarEye = avatarEye * k;
-        s.GroundingOffset = i.Desktop || i.Seated ? 0f : BasisCalibrationMath.HeightModeGroundingOffset(avatarEye, k, s.DeviceScale, playerEye + fullOffset);
+        s.GroundingOffset = i.Desktop || i.Seated ? 0f : BasisCalibrationMath.HeightModeGroundingOffset(avatarEye, k, s.DeviceScale, trackedEye + fullOffset);
         return s;
     }
     public static BasisScaleFitResult SolveBestFit(in BasisScaleInputs i, float avatarEye, float playerTrueEye, float avatarSpan, float playerSpan)

@@ -43,9 +43,9 @@ namespace Basis.Tests.Fitting
         public BasisFitTrackers Trackers;
         public BasisSelectedHeightMode Mode;
         public BasisFitPipeline Pipeline;
-        public float AvatarScale, FitDeviation;
+        public float AvatarScale, FitDeviation, FloorError;
         public bool CalibrateLookingDown;
-        public string Label => $"{Pipeline}|{Mode}|{TrackerLabel(Trackers)}|{Player.Name}|{Avatar.Name}|k{AvatarScale:0.##}";
+        public string Label => $"{Pipeline}|{Mode}|{TrackerLabel(Trackers)}|{Player.Name}|{Avatar.Name}|k{AvatarScale:0.##}{(FloorError != 0f ? $"|floor{FloorError:+0.##;-0.##}" : "")}";
         public static string TrackerLabel(BasisFitTrackers t)
         {
             int count = 3 + (t.HasFlag(BasisFitTrackers.Hips) ? 1 : 0) + (t.HasFlag(BasisFitTrackers.Feet) ? 2 : 0) + (t.HasFlag(BasisFitTrackers.Knees) ? 2 : 0) + (t.HasFlag(BasisFitTrackers.Elbows) ? 2 : 0) + (t.HasFlag(BasisFitTrackers.Chest) ? 1 : 0);
@@ -96,7 +96,8 @@ namespace Basis.Tests.Fitting
             PosePlayer(Player, BasisFitPose.TPose);
             playerRestLeftFoot = Player.LeftFoot.position;
             BasisFitTestRig a = Avatar;
-            float playerEye = Player.Eye.position.y, playerSpan = Flat(Player.LeftHand.position, Player.RightHand.position);
+            float playerSpan = Flat(Player.LeftHand.position, Player.RightHand.position), measuredEye = Player.Eye.position.y + Scenario.FloorError;
+            float playerEye = Scenario.Pipeline == BasisFitPipeline.Current ? BasisCalibrationMath.SizingEyeHeight(measuredEye, playerSpan, true, 0f) : measuredEye;
             float playerHip = Has(BasisFitTrackers.Hips) ? Player.HipsTracker.position.y : 0f;
             avatarEye = a.Eye.position.y;
             float shoulders = Flat(a.LeftUpperArm.position, a.RightUpperArm.position);
@@ -115,6 +116,7 @@ namespace Basis.Tests.Fitting
                 {
                     Mode = Scenario.Mode,
                     PlayerEye = playerEye,
+                    PlayerTrackedEye = measuredEye,
                     PlayerSpan = playerSpan,
                     AvatarEye = avatarEye,
                     AvatarSpan = segmentSpan,
@@ -220,7 +222,7 @@ namespace Basis.Tests.Fitting
             Setup.ArmResidual = playerArm / Mathf.Max(1e-4f, avatarArm);
             return fit;
         }
-        Vector3 Map(Vector3 p) => (p + Vector3.up * Setup.Grounding) * Setup.DeviceScale;
+        Vector3 Map(Vector3 p) => (p + Vector3.up * (Scenario.FloorError + Setup.Grounding)) * Setup.DeviceScale;
         Vector3 Fitted(Transform bone) => Avatar.Wrapper.transform.TransformVector(Avatar.RestLocal(bone));
         void Calibrate()
         {

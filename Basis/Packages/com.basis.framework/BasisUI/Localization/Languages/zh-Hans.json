@@ -1384,6 +1384,7 @@
     { "key": "calibration.summary.fit.compromised", "value": "贴合：这个化身的比例很难匹配。若仍感觉不对，请试试下方的尺寸微调。" },
     { "key": "calibration.summary.fit.none", "value": "贴合：等待测量结果。" },
     { "key": "calibration.summary.differentPerson", "value": "一段时间以来，你测得的身高都低于记录的尺寸。如果别人用过这台头显，请按「测量我」。" },
+    { "key": "calibration.summary.floorLow", "value": "你的VR地面似乎低了约{0}。Basis已据此校正了你的尺寸，但在VR软件中设置地面高度可获得最佳效果。" },
     { "key": "calibration.avatarNudge", "value": "此化身的尺寸" },
     { "key": "calibration.avatarNudge.tooltip", "value": "仅放大或缩小此化身。按化身分别记住，因此绝不会影响你测得的尺寸或你穿戴的其他化身。当某个化身的比例过于特殊、自动贴合难以处理时使用。" },
     { "key": "calibration.refit.title", "value": "贴合已更新" },

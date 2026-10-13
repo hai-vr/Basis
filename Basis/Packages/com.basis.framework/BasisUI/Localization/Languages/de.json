@@ -1384,6 +1384,7 @@
     { "key": "calibration.summary.fit.compromised", "value": "Passform: die Proportionen dieses Avatars sind schwer zu treffen. Nutze unten die Größenkorrektur, falls es sich weiterhin falsch anfühlt." },
     { "key": "calibration.summary.fit.none", "value": "Passform: warte auf Messwerte." },
     { "key": "calibration.summary.differentPerson", "value": "Du wirst seit einer Weile kleiner gemessen als die gespeicherte Größe. Wenn jemand anderes dieses Headset benutzt hat, drücke „Mich vermessen“." },
+    { "key": "calibration.summary.floorLow", "value": "Dein VR-Boden scheint etwa {0} zu tief zu liegen. Basis hat deine Größe dafür korrigiert, aber am besten passt es, wenn du den Boden in deiner VR-Software einstellst." },
     { "key": "calibration.avatarNudge", "value": "Größe dieses Avatars" },
     { "key": "calibration.avatarNudge.tooltip", "value": "Macht nur diesen Avatar größer oder kleiner. Wird pro Avatar gespeichert und beeinflusst daher weder deine gemessene Größe noch andere Avatare. Nutze das, wenn die Proportionen eines Avatars für die automatische Anpassung zu ungewöhnlich sind." },
     { "key": "calibration.refit.title", "value": "Passform aktualisiert" },

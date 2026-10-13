@@ -1384,6 +1384,7 @@
     { "key": "calibration.summary.fit.compromised", "value": "フィット: このアバターの体型は合わせるのが難しいものです。まだ違和感があれば、下のサイズ微調整をお試しください。" },
     { "key": "calibration.summary.fit.none", "value": "フィット: 計測待ちです。" },
     { "key": "calibration.summary.differentPerson", "value": "しばらくの間、記録されているサイズより低く計測されています。他の人がこのヘッドセットを使ったのであれば、「自分を計測」を押してください。" },
+    { "key": "calibration.summary.floorLow", "value": "VRの床が約{0}低すぎるようです。Basisはそれに合わせてサイズを補正しましたが、VRソフトウェアで床の高さを設定すると最も正確になります。" },
     { "key": "calibration.avatarNudge", "value": "このアバターのサイズ" },
     { "key": "calibration.avatarNudge.tooltip", "value": "このアバターだけを大きく／小さくします。アバターごとに記憶されるため、計測されたあなたのサイズにも他のアバターにも影響しません。自動フィットでは扱いきれないほど体型が特殊なアバターに使ってください。" },
     { "key": "calibration.refit.title", "value": "フィットを更新しました" },

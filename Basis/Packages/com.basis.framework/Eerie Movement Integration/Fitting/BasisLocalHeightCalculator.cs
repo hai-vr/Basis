@@ -330,7 +330,7 @@ public static partial class BasisLocalHeightCalculator
             return;
         }
 
-        float minAllowed = eyeHeight * (1f - EyeArmTolerance);
+        float minAllowed = Mathf.Min(eyeHeight, BasisCalibrationMath.MaxPlausibleStandingEyeMeters) * (1f - EyeArmTolerance);
         if (armSpan < minAllowed)
         {
             BasisDebug.LogWarning( $"{label} arm span ({armSpan}) is >{EyeArmTolerance:P0} smaller than {label} eye height ({eyeHeight}). " + $"Clamping to min allowed: {minAllowed}", BasisDebug.LogTag.Avatar );

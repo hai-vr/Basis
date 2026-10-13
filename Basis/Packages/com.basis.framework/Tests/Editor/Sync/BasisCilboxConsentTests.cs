@@ -276,6 +276,92 @@ namespace Basis.Tests.Sync
             Assert.AreEqual("Thing, WWWForm..ctor", lines[3].Detail);
             Assert.IsTrue(BasisCilboxPermissionText.AnySevere(new[] { "Method:UnityEngine.Application.OpenURL" }));
             Assert.IsFalse(BasisCilboxPermissionText.AnySevere(new[] { "Method:UnityEngine.GameObject.AddComponent" }));
+            Assert.IsTrue(BasisCilboxPermissionText.AnySevere(new[] { "Method:UnityEngine.PlayerPrefs.GetString" }));
+        }
+
+        static List<BasisCilboxPermissionText.Use> UsesOf(CilboxBasisCommon box, params string[] items)
+        {
+            object scan = Activator.CreateInstance(Field("consentScan").FieldType, true);
+            Set(scan, "Items").UnionWith(items);
+            MethodInfo uses = typeof(CilboxBasisCommon).Assembly.GetType("Cilbox.CilboxBasisConsent", true).GetMethod("Uses", BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.IsNotNull(uses, "CilboxBasisConsent.Uses moved; this test cannot check where scripts use their permissions.");
+            return (List<BasisCilboxPermissionText.Use>)uses.Invoke(null, new[] { box, scan });
+        }
+
+        [Test]
+        public void MoreInfo_NamesTheScriptMethodBehindEachRequest()
+        {
+            CilboxPropBasis prop = AddBox<CilboxPropBasis>();
+            prop.metadatas = new[]
+            {
+                null,
+                new CilMetadataTokenInfo(MetaTokenType.mtMethod) { nativeMethod = typeof(System.IO.File).GetMethod(nameof(System.IO.File.ReadAllText), new[] { typeof(string) }) },
+                new CilMetadataTokenInfo(MetaTokenType.mtType) { nativeType = typeof(System.IO.DirectoryInfo) },
+            };
+            prop.classesList = new[]
+            {
+                new CilboxClass
+                {
+                    className = "Silk.Leaderboard",
+                    methods = new[]
+                    {
+                        new CilboxMethod { methodName = "Upload", byteCode = new byte[] { 0x45, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x28, 1, 0, 0, 0, 0x74, 2, 0, 0, 0, 0x2A } },
+                        new CilboxMethod { methodName = "Start", typeLocals = new[] { typeof(System.IO.FileInfo) }, byteCode = new byte[] { 0x2A } },
+                    },
+                },
+                new CilboxClass
+                {
+                    className = "Silk.Leaderboard+<>c",
+                    methods = new[] { new CilboxMethod { methodName = "<Refresh>b__4_0", byteCode = new byte[] { 0x28, 1, 0, 0, 0, 0x2A } } },
+                },
+            };
+
+            List<BasisCilboxPermissionText.Use> uses = UsesOf(prop, "Type:System.IO.File", "Type:System.IO.DirectoryInfo", "Type:System.IO.FileInfo", "Type:System.IO.Path");
+
+            CollectionAssert.AreEquivalent(new[]
+            {
+                "Type:System.IO.File|Leaderboard.Upload|File.ReadAllText()",
+                "Type:System.IO.DirectoryInfo|Leaderboard.Upload|DirectoryInfo",
+                "Type:System.IO.FileInfo|Leaderboard.Start|FileInfo",
+                "Type:System.IO.File|Leaderboard.Refresh|File.ReadAllText()",
+            }, uses.ConvertAll(use => $"{use.Item}|{use.Where}|{use.Code}"));
+        }
+
+        [Test]
+        public void MoreInfo_ExplainsEachPermission_ThenWhereTheScriptsUseIt()
+        {
+            List<BasisCilboxPermissionText.Use> uses = new List<BasisCilboxPermissionText.Use>
+            {
+                new BasisCilboxPermissionText.Use("Type:System.IO.File", "Leaderboard.Upload", "File.ReadAllText()"),
+                new BasisCilboxPermissionText.Use("Type:System.IO.File", "Leaderboard.Upload", "File.WriteAllText()"),
+                new BasisCilboxPermissionText.Use("Type:System.IO.File", "Leaderboard.Refresh", "File.ReadAllText()"),
+                new BasisCilboxPermissionText.Use("Method:UnityEngine.GameObject.AddComponent", "Spawner‮.Start\n", "GameObject.AddComponent()"),
+                new BasisCilboxPermissionText.Use("Type:System.IntPtr", "Leaderboard.Upload", "IntPtr"),
+            };
+            List<BasisCilboxPermissionText.Line> lines = BasisCilboxPermissionText.Review(
+                new[] { "Type:System.IO.File", "Type:System.IO.Path", "Method:UnityEngine.GameObject.AddComponent" },
+                new[] { "Type:System.IntPtr" },
+                uses);
+
+            Assert.AreEqual(3, lines.Count);
+            Assert.IsTrue(lines[0].Severe);
+            Assert.AreEqual(BasisLocalization.Get("settings.cilboxPermissions.cap.files"), lines[0].Text);
+            CollectionAssert.AreEqual(new[]
+            {
+                BasisLocalization.Get("settings.cilboxPermissions.why.files"),
+                BasisLocalization.Get("settings.cilboxPermissions.review.in", "Leaderboard.Refresh", "File.ReadAllText()"),
+                BasisLocalization.Get("settings.cilboxPermissions.review.in", "Leaderboard.Upload", "File.ReadAllText(), File.WriteAllText()"),
+                BasisLocalization.Get("settings.cilboxPermissions.review.unplaced", "Path"),
+            }, lines[0].Detail.Split('\n'));
+            Assert.IsFalse(lines[1].Severe);
+            CollectionAssert.AreEqual(new[]
+            {
+                BasisLocalization.Get("settings.cilboxPermissions.why.addComponents"),
+                BasisLocalization.Get("settings.cilboxPermissions.review.in", "Spawner.Start", "GameObject.AddComponent()"),
+            }, lines[1].Detail.Split('\n'));
+            Assert.IsTrue(lines[2].Severe);
+            Assert.AreEqual(BasisLocalization.Get("settings.cilboxPermissions.review.blocked"), lines[2].Text);
+            StringAssert.EndsWith(BasisLocalization.Get("settings.cilboxPermissions.review.in", "Leaderboard.Upload", "IntPtr"), lines[2].Detail);
         }
 
         [Test]
