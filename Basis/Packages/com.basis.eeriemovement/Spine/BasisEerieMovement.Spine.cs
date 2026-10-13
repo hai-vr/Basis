@@ -83,6 +83,8 @@ namespace Basis.IK
             SpineData.hipTargetRotation = plan.hasHips ? poseStream.GetRotation(handleHips) : SpineData.rotations[0];
             SpineData.headTargetPosition = headTargetPosition;
             SpineData.headTargetRotation = headTargetRotation;
+            SpineData.clampHipDistance = !plan.headPinnedHips;
+            SpineData.headFollow = plan.headPinnedHips ? SpineHeadFollow : 1f;
             int chestIndex = count - 1 - plan.chestIdx;
             bool hasTrackedChest = plan.chestTracked && plan.chestChain && chestIndex > 0 && chestIndex < count - 1;
             SpineData.chestIndex = chestIndex;

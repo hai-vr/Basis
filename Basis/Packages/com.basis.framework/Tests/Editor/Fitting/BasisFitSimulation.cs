@@ -286,7 +286,7 @@ namespace Basis.Tests.Fitting
             if (desktop)
             {
                 hmdRot = Quaternion.Euler(pitch, 0f, 0f);
-                BasisHeadPitchSwingCore.Solve(pitch, 0f, deskEyeFromNeck, 1f, 0.35f, out Vector3 swing, out _);
+                BasisHeadPitchSwingCore.Solve(pitch, 0f, deskEyeFromNeck, 0.35f, out Vector3 swing, out _);
                 headTarget = deskHead + swing;
                 hmd = headTarget - hmdRot * headFromEye;
                 hipsTarget = deskHips;

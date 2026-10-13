@@ -1887,9 +1887,8 @@ namespace Basis.BasisUI
         // head->neck lever to the head (BasisNeckCueCore -- the virtual spine's neck bone). Swinging that lever
         // by the WHOLE gaze assumes a nod pivots at the neck bone; cervical extension is short and a look-up is
         // mostly thoracic arching, so the skull barely slides back and the estimated neck walks forward and up
-        // instead, and the chest chord strung under it follows. Removing 0.65 leaves a 0.35 carry, matching
-        // DesktopHeadSwingBackward -- the same physiology measured from the eye end. 0 = the old rigid
-        // re-attachment (a true off switch). Look-down and pure yaw are untouched at any value.
+        // instead, and the chest chord strung under it follows. Removing 0.65 leaves a 0.35 carry.
+        // 0 = the old rigid re-attachment (a true off switch). Look-down and pure yaw are untouched at any value.
         public static BasisSettingsBinding<float> FBIKNeckExtensionDamp = new("fbikneckextensiondamp", new BasisPlatformDefault<float>(0.65f));
         // Flexion is the look-DOWN half of the same lever. It was undamped, which left the neck estimate --
         // and through it the pelvis -- rising 5 cm on a steep look down with the feet planted.
@@ -1937,9 +1936,6 @@ namespace Basis.BasisUI
         // neck->eye geometry; lower it if the camera travel feels like too much.
         public static BasisSettingsBinding<bool> DesktopHeadSwingEnabled = new("desktopheadswingenabled", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> DesktopHeadSwingStrength = new("desktopheadswingstrength", new BasisPlatformDefault<float>(1f));
-        // Looking up is not the mirror of looking down: the thoracic spine takes most of it, so the skull does
-        // not slide back over the shoulders anything like as far as the raw neck geometry claims.
-        public static BasisSettingsBinding<float> DesktopHeadSwingBackward = new("desktopheadswingbackward", new BasisPlatformDefault<float>(0.35f));
 
         // ---------------- VIRTUAL SPINE (no torso tracker) ----------------
         // Per-axis cascade fractions of head-relative pitch/roll that the synthesized chest and
@@ -1975,8 +1971,8 @@ namespace Basis.BasisUI
         // sideways as "the hips jut out left and right", forward/back as a pelvis that wanders on a glance.
         //
         // This removes both halves, and it must remove both halves of each: the PITCH swing is modelled
-        // (DesktopHeadSwingBackward supplies the look-up share, so the VR and desktop halves of that model
-        // cannot drift apart), while the YAW arc is cancelled exactly -- the reference is carried back onto
+        // (BasisDesktopEye.HeadSwingBackward supplies the desktop look-up share), while the YAW arc is cancelled
+        // exactly -- the reference is carried back onto
         // the neck, the pivot the head actually turns about, and the pelvis's own anchor arm is re-measured
         // from that same pivot so the two cancel algebraically at any yaw. Both ends move together on this
         // one number, which is why it is one number. 1 = leash only real travel; 0 = the old behaviour.
@@ -2942,7 +2938,6 @@ namespace Basis.BasisUI
             FBIKArmHeightRatio.LoadBindingValue();
             DesktopHeadSwingEnabled.LoadBindingValue();
             DesktopHeadSwingStrength.LoadBindingValue();
-            DesktopHeadSwingBackward.LoadBindingValue();
             FBIKLegSwivelSmoothing.LoadBindingValue();
             FBIKTrackerBendNormal.LoadBindingValue();
             VSpineChestPitchFrac.LoadBindingValue();

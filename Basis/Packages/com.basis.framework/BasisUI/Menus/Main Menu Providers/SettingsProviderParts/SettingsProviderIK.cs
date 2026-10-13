@@ -483,12 +483,6 @@ public static partial class SettingsProviderIK
                 PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.headSwing.strength"), 0f, 2f, false, 2, ValueDisplayMode.Raw),
                 BasisSettingsDefaults.DesktopHeadSwingStrength);
             strength?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.headSwing.strength.tooltip"));
-
-            var backward = PanelSlider.CreateAndBind(
-                swingParent,
-                PanelSlider.SliderSettings.Advanced(BasisLocalization.Get("settings.bodyTracking.headSwing.backward"), 0f, 1f, false, 2, ValueDisplayMode.Raw),
-                BasisSettingsDefaults.DesktopHeadSwingBackward);
-            backward?.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.headSwing.backward.tooltip"));
         });
 
         // ============== Spine: Reach Limits ==============
@@ -1250,7 +1244,6 @@ public static partial class SettingsProviderIK
         BasisSettingsDefaults.FBIKBodyFitMaxDeviation.ResetToDefault();
         BasisSettingsDefaults.DesktopHeadSwingEnabled.ResetToDefault();
         BasisSettingsDefaults.DesktopHeadSwingStrength.ResetToDefault();
-        BasisSettingsDefaults.DesktopHeadSwingBackward.ResetToDefault();
 
         // Per-bone toggles and calibration sphere scale
         foreach (var b in _bones)
