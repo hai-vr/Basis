@@ -1145,7 +1145,6 @@ namespace Basis.Scripts.Drivers
                 data.targetRotationHead = rOut[sHead];
                 float restHeadLocalY = BasisLocalBoneDriver.HeadControl.TposeLocalScaled.position.y;
                 data.standingHeadHeight = Mathf.Max(0f, restHeadLocalY * framePlayerUpScale);
-                data.headSlipLever = BasisLocalBoneDriver.EyeControl != null && BasisLocalBoneDriver.NeckControl != null ? Vector3.Distance(BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position, BasisLocalBoneDriver.NeckControl.TposeLocalScaled.position) * framePlayerUpScale : 0f;
                 if (framePlayerUpScale <= 1e-6f)
                 {
                     data.crouchDepth = 0f;
@@ -1170,8 +1169,6 @@ namespace Basis.Scripts.Drivers
             BasisLocalPlayerMarkers.IKDestBuildIKTargets.Begin();
             ref BasisEerieMovement data = ref IKJob;
             BasisLocalFootDriver footDriver = localPlayer.BasisLocalFootDriver;
-            data.simLeftPlanted = footDriver.LeftFootPlanted;
-            data.simRightPlanted = footDriver.RightFootPlanted;
             unsafe
             {
                 float3* pOut = (float3*)posOutputs.GetUnsafeReadOnlyPtr();

@@ -273,7 +273,7 @@ namespace Basis.IK
             float d2 = upper * upper + lower * lower - 2f * upper * lower * c;
             return d2 > 0f ? Mathf.Sqrt(d2) : 0f;
         }
-        public static float MaxExtensionReach(float upper, float lower)
+        static float MaxExtensionReach(float upper, float lower)
         {
             float c = Mathf.Cos(MaxKneeInteriorDeg * Mathf.Deg2Rad);
             float d2 = upper * upper + lower * lower - 2f * upper * lower * c;

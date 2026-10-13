@@ -30,8 +30,6 @@ namespace Basis.Tests.Fitting
         Bow,
         StepUp,
         LookPitch,
-        DesktopLookDown,
-        DesktopLookAtFeet,
         DesktopPitch,
     }
     public enum BasisFitPipeline
@@ -46,7 +44,7 @@ namespace Basis.Tests.Fitting
         public BasisSelectedHeightMode Mode;
         public BasisFitPipeline Pipeline;
         public float AvatarScale, FitDeviation;
-        public bool CalibrateLookingDown, Seated, FeetAirborne;
+        public bool CalibrateLookingDown;
         public string Label => $"{Pipeline}|{Mode}|{TrackerLabel(Trackers)}|{Player.Name}|{Avatar.Name}|k{AvatarScale:0.##}";
         public static string TrackerLabel(BasisFitTrackers t)
         {
@@ -61,7 +59,7 @@ namespace Basis.Tests.Fitting
     }
     public struct BasisFitMetrics
     {
-        public float HeadError, EyeError, NeckStretch, VisibleNeckStretch, HandErrorL, HandErrorR, ElbowAngleDiff, FootGapL, FootGapR, FootErrorL, FootErrorR, HipsError, ShoulderHeightError, HipsHeightError, PostureError, SlipAllowance, KneeBend;
+        public float HeadError, EyeError, NeckStretch, VisibleNeckStretch, HandErrorL, HandErrorR, ElbowAngleDiff, FootGapL, FootGapR, FootErrorL, FootErrorR, HipsError, ShoulderHeightError, HipsHeightError, PostureError, KneeBend;
         public float HandError => Mathf.Max(HandErrorL, HandErrorR);
         public float FootGap => Mathf.Abs(FootGapL) > Mathf.Abs(FootGapR) ? FootGapL : FootGapR;
         public float FootError => Mathf.Max(FootErrorL, FootErrorR);
@@ -79,7 +77,7 @@ namespace Basis.Tests.Fitting
         public BasisFitSetupResult Setup;
         Mount hips, chest, leftFoot, rightFoot, leftKnee, rightKnee, leftElbow, rightElbow;
         Vector3 headFromEye, plantedLeft, plantedRight, authoredHipsFromHead, playerRestLeftFoot, deskHead, deskHips, deskEyeFromNeck;
-        float avatarEye, neckRest, visibleNeckRest, shoulderRestY, authoredFootY, authoredHipsY, eyeNeckLever;
+        float avatarEye, neckRest, visibleNeckRest, shoulderRestY, authoredFootY, authoredHipsY;
         public const float Dt = 1f / 90f;
         public const int SolveFrames = 8;
         public static BasisFitSimulation Create(in BasisFitScenario scenario)
@@ -109,7 +107,6 @@ namespace Basis.Tests.Fitting
             authoredFootY = (a.LeftFoot.position.y + a.RightFoot.position.y) * 0.5f * k;
             authoredHipsY = a.Hips.position.y * k;
             authoredHipsFromHead = (a.Hips.position - a.Head.position) * k;
-            eyeNeckLever = Vector3.Distance(a.Eye.position, (a.Neck != null ? a.Neck : a.Head.parent).position) * k;
             Setup.EyeRatio = avatarEye / playerEye;
             BasisBodyFitResult fit;
             if (Scenario.Pipeline == BasisFitPipeline.Current)
@@ -273,7 +270,7 @@ namespace Basis.Tests.Fitting
             BasisCalibrationMath.ApplyInverseOffset(Map(tracker.position), tracker.rotation, m.Position, m.Rotation, out Vector3 position, out rotation);
             return position;
         }
-        public static bool IsDesktop(BasisFitPose pose) => pose == BasisFitPose.DesktopLookDown || pose == BasisFitPose.DesktopLookAtFeet || pose == BasisFitPose.DesktopPitch;
+        public static bool IsDesktop(BasisFitPose pose) => pose == BasisFitPose.DesktopPitch;
         public BasisFitMetrics Solve(BasisFitPose pose, float pitch = 0f)
         {
             PosePlayer(Player, pose, pitch);
@@ -286,9 +283,8 @@ namespace Basis.Tests.Fitting
             Vector3 hipsTarget = Apply(in hips, Has(BasisFitTrackers.Hips) ? Player.HipsTracker : Player.Hips, out Quaternion hipsRot);
             if (desktop)
             {
-                float deskPitch = pose == BasisFitPose.DesktopLookDown ? 60f : pose == BasisFitPose.DesktopLookAtFeet ? 80f : pitch;
-                hmdRot = Quaternion.Euler(deskPitch, 0f, 0f);
-                BasisHeadPitchSwingCore.Solve(deskPitch, 0f, deskEyeFromNeck, 1f, 0.35f, out Vector3 swing, out _);
+                hmdRot = Quaternion.Euler(pitch, 0f, 0f);
+                BasisHeadPitchSwingCore.Solve(pitch, 0f, deskEyeFromNeck, 1f, 0.35f, out Vector3 swing, out _);
                 headTarget = deskHead + swing;
                 hmd = headTarget - hmdRot * headFromEye;
                 hipsTarget = deskHips;
@@ -315,7 +311,6 @@ namespace Basis.Tests.Fitting
                 footSimReady = true,
                 footIKSetting = true,
                 upright = true,
-                seated = Scenario.Seated,
                 hipsTracked = Has(BasisFitTrackers.Hips),
                 chestTracked = Has(BasisFitTrackers.Chest),
                 leftFootTracked = Has(BasisFitTrackers.Feet),
@@ -362,8 +357,6 @@ namespace Basis.Tests.Fitting
             job.kneeAnteriorRef = hipsRot * Vector3.right;
             job.leftDrivenTargetRot = Quaternion.identity;
             job.rightDrivenTargetRot = Quaternion.identity;
-            job.headSlipLever = eyeNeckLever;
-            job.simLeftPlanted = job.simRightPlanted = !Scenario.FeetAirborne;
             job.standingHeadHeight = standingHead;
             job.crouchDepth = Mathf.Max(0f, Mathf.Min(standingHead - headTarget.y, standingHead - headFromEye.y - hmd.y));
             for (int i = 0; i < job.armState.Length; i++) job.armState[i] = default;
@@ -397,7 +390,6 @@ namespace Basis.Tests.Fitting
             m.ShoulderHeightError = 0.5f * (a.LeftUpperArm.position.y + a.RightUpperArm.position.y) - shoulderRestY;
             m.HipsHeightError = a.Hips.position.y - authoredHipsY;
             m.PostureError = Vector3.Distance(a.Hips.position - a.Head.position, authoredHipsFromHead);
-            m.SlipAllowance = 2f * Mathf.Sin(0.5f * Quaternion.Angle(hipsRot, hmdRot) * Mathf.Deg2Rad) * eyeNeckLever;
             m.KneeBend = Mathf.Max(ElbowAngle(a.LeftUpperLeg, a.LeftLowerLeg, a.LeftFoot), ElbowAngle(a.RightUpperLeg, a.RightLowerLeg, a.RightFoot));
             return m;
         }

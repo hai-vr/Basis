@@ -35,7 +35,7 @@ namespace Basis.IK
         public Quaternion hintRotationRightLowerLeg;
         public Vector3 kneeBendPrefLeft, kneeBendPrefRight, kneeAnteriorRef;
         public Quaternion leftDrivenTargetRot, rightDrivenTargetRot;
-        public float leftToeBendDeg, rightToeBendDeg, headSlipLever;
+        public float leftToeBendDeg, rightToeBendDeg;
         public Vector3 leftToeBendAxis, rightToeBendAxis;
         public Quaternion offsetRotationHips, offsetRotationHead, offsetRotationChest, offsetRotationLeftFoot;
         public Quaternion offsetRotationRightFoot, offsetRotationLeftToe, offsetRotationRightToe;
@@ -62,7 +62,7 @@ namespace Basis.IK
         public float shoulderElevationFactor, shoulderProtractionFactor, shoulderMaxDeg, shoulderTrackerBlendTime, lowerArmTwistFraction, upperArmTwistFraction;
         public bool protectElbow, collideTrackedElbow;
         public float armSwivelSmoothTime, armSwivelMaxRateDeg;
-        public bool legSwivelSmoothing, kneeFootPoleHold, kneeFootPoleConditioning, simLeftPlanted, simRightPlanted;
+        public bool legSwivelSmoothing, kneeFootPoleHold, kneeFootPoleConditioning;
         public float trackedKneeSwivelMinCutoffHz, trackedKneeSwivelBeta, trackedKneeSwivelDerivCutoffHz;
         public bool collisionsEnabled;
         public float chestRadius, collisionSkin, handRadius, handSkin;

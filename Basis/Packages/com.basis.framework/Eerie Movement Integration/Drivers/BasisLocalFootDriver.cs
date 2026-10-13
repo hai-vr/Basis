@@ -286,9 +286,6 @@ public partial class BasisLocalFootDriver
     public bool LastGroundHit { get; private set; }
     public float LastGroundUp { get; private set; }
     public float HipsUp { get; private set; }
-    public bool Airborne { get; private set; }
-    public bool LeftFootPlanted => !Airborne && footGroundValid[0];
-    public bool RightFootPlanted => !Airborne && footGroundValid[1];
     private Vector3 HipsWorldPosition()
     {
         var c = BasisLocalBoneDriver.HipsControl;
@@ -830,7 +827,6 @@ public partial class BasisLocalFootDriver
 
         ref readonly BasisFootSimState simOut = ref UnsafeUtility.AsRef<BasisFootSimState>(nativeSimState.GetUnsafeReadOnlyPtr());
         smoothedVelocity = simOut.smoothedVelocity;
-        Airborne = simOut.wasAirborne;
     }
     public bool IsSimulationPending => jobScheduled;
     private unsafe void FinalizeStep(ref BasisFootNativeState f)

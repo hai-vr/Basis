@@ -61,6 +61,9 @@ public class RalivIKSpine
         headToHip = headToHip.normalized * hipHeadRestDistance;
         spineData.hipTargetPosition = Vector3.Lerp(spineData.hipTargetPosition, spineData.headTargetPosition + headToHip, 0.5f);
 
+        Quaternion hipRotationOffset = spineData.hipTargetRotation * Quaternion.Inverse(spineData.restRotations[0]);
+        Quaternion headRotationOffset = spineData.headTargetRotation * Quaternion.Inverse(spineData.restRotations[^1]);
+
         for (int index = 0; index < spineData.headTargetAlignedSpinePositions.Length; index++)
         {
             if (index == spineData.headTargetAlignedSpinePositions.Length - 1)
@@ -102,7 +105,10 @@ public class RalivIKSpine
             {
                 spineData.positions[index] = Vector3.Lerp(spineData.positions[index], spineData.targetSpinePositions[index], curveConstraint);
             }
-            PullTowardChest(ref spineData, curveConstraint);
+            var spineOffset = spineData.chestTargetPosition - spineData.positions[2];
+            spineOffset *= spineData.chestHintWeight * curveConstraint;
+            spineData.positions[2] += spineOffset;
+            spineData.positions[3] += spineOffset * 0.5f;
             for (int index = spineData.positions.Length - 2; index >= 0; index--)
             {
                 var targetIndex = index + 1;
@@ -132,54 +138,6 @@ public class RalivIKSpine
         //  Debug.DrawLine(spineData.positions[index], spineData.positions[index + 1], Color.green);
         // }
 
-        SolveRotations(ref spineData);
-        PinHead(ref spineData);
-    }
-    public static void LowerRoot(ref SpineData spineData, Vector3 up, float drop, float headSlip)
-    {
-        int last = spineData.positions.Length - 1;
-        Vector3 root = spineData.positions[0] - up * drop;
-        for (int iteration = 0; iteration < iterations; iteration++)
-        {
-            PullTowardChest(ref spineData, 1f - (float)iteration / iterations);
-            spineData.positions[last] = spineData.headTargetPosition;
-            for (int index = last - 1; index >= 0; index--)
-            {
-                spineData.positions[index] = Follow(spineData.positions[index], spineData.positions[index + 1], Vector3.Magnitude(spineData.restPositions[index + 1] - spineData.restPositions[index]));
-            }
-            spineData.positions[0] = root;
-            for (int index = 1; index <= last; index++)
-            {
-                spineData.positions[index] = Follow(spineData.positions[index], spineData.positions[index - 1], Vector3.Magnitude(spineData.restPositions[index] - spineData.restPositions[index - 1]));
-            }
-        }
-        Vector3 miss = spineData.headTargetPosition - spineData.positions[last];
-        float missLength = miss.magnitude;
-        if (missLength > headSlip)
-        {
-            Vector3 shift = miss * ((missLength - headSlip) / missLength);
-            for (int index = 0; index <= last; index++)
-            {
-                spineData.positions[index] += shift;
-            }
-        }
-        SolveRotations(ref spineData);
-    }
-    static Vector3 Follow(Vector3 position, Vector3 anchor, float length) => anchor + (position - anchor).normalized * length;
-    static void PullTowardChest(ref SpineData spineData, float weight)
-    {
-        if (!(spineData.chestHintWeight > 0f) || spineData.positions.Length < 4)
-        {
-            return;
-        }
-        var spineOffset = (spineData.chestTargetPosition - spineData.positions[2]) * (spineData.chestHintWeight * weight);
-        spineData.positions[2] += spineOffset;
-        spineData.positions[3] += spineOffset * 0.5f;
-    }
-    static void SolveRotations(ref SpineData spineData)
-    {
-        Quaternion hipRotationOffset = spineData.hipTargetRotation * Quaternion.Inverse(spineData.restRotations[0]);
-        Quaternion headRotationOffset = spineData.headTargetRotation * Quaternion.Inverse(spineData.restRotations[^1]);
         for (var index = 0; index < spineData.positions.Length - 1; index++)
         {
             var preRotation = Quaternion.Slerp(hipRotationOffset, headRotationOffset, spineData.t[index]);
@@ -246,17 +204,16 @@ public class RalivIKSpine
                 }
             }
         }
-    }
-    static void PinHead(ref SpineData spineData)
-    {
+
         var headPinCorrection = spineData.headTargetPosition - spineData.positions[^1];
         for (var index = 0; index < spineData.positions.Length; index++)
         {
             spineData.positions[index] += headPinCorrection;
         }
-    }
-    static Quaternion SafeFromToRotation(Vector3 from, Vector3 to)
-    {
-        return from.sqrMagnitude > BasisEerieMovement.sqrEpsilon && to.sqrMagnitude > BasisEerieMovement.sqrEpsilon ? BasisQuaternionExt.FromToRotation(from, to) : Quaternion.identity;
+
+        static Quaternion SafeFromToRotation(Vector3 from, Vector3 to)
+        {
+            return from.sqrMagnitude > BasisEerieMovement.sqrEpsilon && to.sqrMagnitude > BasisEerieMovement.sqrEpsilon ? BasisQuaternionExt.FromToRotation(from, to) : Quaternion.identity;
+        }
     }
 }

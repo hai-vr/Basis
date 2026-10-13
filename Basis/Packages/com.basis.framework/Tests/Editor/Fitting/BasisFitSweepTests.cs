@@ -12,8 +12,6 @@ namespace Basis.Tests.Fitting
     public class BasisFitSweepTests
     {
         static readonly BasisFitPose[] Poses = { BasisFitPose.TPose, BasisFitPose.Idle, BasisFitPose.ReachForward, BasisFitPose.ReachUp, BasisFitPose.LookDown, BasisFitPose.LookAtFeet, BasisFitPose.Crouch, BasisFitPose.LookUp, BasisFitPose.HeadRoll, BasisFitPose.HeadYaw, BasisFitPose.Rise, BasisFitPose.Bow, BasisFitPose.StepUp };
-        static bool Tilted(BasisFitPose pose) => pose == BasisFitPose.LookDown || pose == BasisFitPose.LookAtFeet || pose == BasisFitPose.LookUp || pose == BasisFitPose.HeadRoll || pose == BasisFitPose.HeadYaw || pose == BasisFitPose.Bow || pose == BasisFitPose.LookPitch || BasisFitSimulation.IsDesktop(pose);
-        static bool FeetPlanted(BasisFitPose pose) => pose == BasisFitPose.Crouch || pose == BasisFitPose.LookDown || pose == BasisFitPose.LookAtFeet || pose == BasisFitPose.LookUp || pose == BasisFitPose.HeadRoll || pose == BasisFitPose.HeadYaw || pose == BasisFitPose.Bow || pose == BasisFitPose.LookPitch || BasisFitSimulation.IsDesktop(pose);
         static readonly BasisSelectedHeightMode[] Modes = { BasisSelectedHeightMode.EyeHeight, BasisSelectedHeightMode.BestFit, BasisSelectedHeightMode.ArmSpan };
         static readonly BasisFitTrackers[] TrackerSets =
         {
@@ -31,7 +29,7 @@ namespace Basis.Tests.Fitting
             public BasisFitPose Pose;
             public BasisFitMetrics Metrics;
         }
-        const string Header = "pipeline,mode,trackers,player,avatar,k,lookdown_calib,pose,u,eye_ratio,device_scale,grounding,arm_scale,leg_scale,torso_scale,arm_residual,shoulder_mismatch,status,head_err,eye_err,neck_stretch,visible_neck_stretch,hand_err_l,hand_err_r,elbow_diff_deg,foot_gap_l,foot_gap_r,foot_err_l,foot_err_r,hips_err,shoulder_dy,hips_dy,posture_err,slip_allowance,knee_bend";
+        const string Header = "pipeline,mode,trackers,player,avatar,k,lookdown_calib,pose,u,eye_ratio,device_scale,grounding,arm_scale,leg_scale,torso_scale,arm_residual,shoulder_mismatch,status,head_err,eye_err,neck_stretch,visible_neck_stretch,hand_err_l,hand_err_r,elbow_diff_deg,foot_gap_l,foot_gap_r,foot_err_l,foot_err_r,hips_err,shoulder_dy,hips_dy,posture_err,knee_bend";
         static string Csv(in Row r)
         {
             var c = CultureInfo.InvariantCulture;
@@ -41,7 +39,7 @@ namespace Basis.Tests.Fitting
             return string.Join(",", s.Pipeline, s.Mode, BasisFitScenario.TrackerLabel(s.Trackers), s.Player.Name, s.Avatar.Name, s.AvatarScale.ToString("0.###", c), s.CalibrateLookingDown ? 1 : 0, r.Pose,
                 u.UniformScale.ToString("0.####", c), u.EyeRatio.ToString("0.####", c), u.DeviceScale.ToString("0.####", c), u.Grounding.ToString("0.####", c), u.ArmScale.ToString("0.####", c), u.LegScale.ToString("0.####", c), u.TorsoScale.ToString("0.####", c), u.ArmResidual.ToString("0.####", c), u.ShoulderMismatch.ToString("0.####", c), u.Status,
                 m.HeadError.ToString("0.#####", c), m.EyeError.ToString("0.#####", c), m.NeckStretch.ToString("0.#####", c), m.VisibleNeckStretch.ToString("0.#####", c), m.HandErrorL.ToString("0.#####", c), m.HandErrorR.ToString("0.#####", c), m.ElbowAngleDiff.ToString("0.##", c),
-                m.FootGapL.ToString("0.#####", c), m.FootGapR.ToString("0.#####", c), m.FootErrorL.ToString("0.#####", c), m.FootErrorR.ToString("0.#####", c), m.HipsError.ToString("0.#####", c), m.ShoulderHeightError.ToString("0.#####", c), m.HipsHeightError.ToString("0.#####", c), m.PostureError.ToString("0.#####", c), m.SlipAllowance.ToString("0.#####", c), m.KneeBend.ToString("0.##", c));
+                m.FootGapL.ToString("0.#####", c), m.FootGapR.ToString("0.#####", c), m.FootErrorL.ToString("0.#####", c), m.FootErrorR.ToString("0.#####", c), m.HipsError.ToString("0.#####", c), m.ShoulderHeightError.ToString("0.#####", c), m.HipsHeightError.ToString("0.#####", c), m.PostureError.ToString("0.#####", c), m.KneeBend.ToString("0.##", c));
         }
         static List<Row> Run(IEnumerable<BasisFitScenario> scenarios)
         {
@@ -121,17 +119,9 @@ namespace Basis.Tests.Fitting
                 {
                     failures.Add($"{label}: foot {r.Metrics.FootGap * 100f:0.0} cm off the floor");
                 }
-                if (feetFromFloor && FeetPlanted(r.Pose) && Rel(r, Math.Abs(r.Metrics.FootGap)) > 0.0025f)
-                {
-                    failures.Add($"{label}: the planted feet left the floor by {r.Metrics.FootGap * 100f:0.0} cm");
-                }
                 if (feetFromFloor && r.Pose == BasisFitPose.StepUp && (Rel(r, Math.Abs(r.Metrics.FootGapR)) > 0.0025f || Rel(r, r.Metrics.FootErrorL) > 0.01f))
                 {
                     failures.Add($"{label}: stepping left the standing foot {r.Metrics.FootGapR * 100f:0.0} cm off the floor, lifted foot {r.Metrics.FootErrorL * 100f:0.0} cm from its target");
-                }
-                if (Tilted(r.Pose) && Rel(r, r.Metrics.EyeError) > Rel(r, r.Metrics.SlipAllowance) + 0.002f)
-                {
-                    failures.Add($"{label}: eye {r.Metrics.EyeError * 100f:0.0} cm off the camera, more than a nod allows ({r.Metrics.SlipAllowance * 100f:0.0} cm)");
                 }
                 if ((r.Pose == BasisFitPose.Rise || r.Pose == BasisFitPose.StepUp) && Rel(r, r.Metrics.EyeError) > 0.003f)
                 {
@@ -234,48 +224,10 @@ namespace Basis.Tests.Fitting
             {
                 TestContext.WriteLine($"{r.Scenario.Pipeline} {r.Scenario.Avatar.Name} crouch foot gap {r.Metrics.FootGap * 100f:0.0} cm");
             }
-            foreach (Row r in rows.Where(r => r.Scenario.Pipeline == BasisFitPipeline.Current && (r.Pose == BasisFitPose.TPose || FeetPlanted(r.Pose))))
+            foreach (Row r in rows.Where(r => r.Scenario.Pipeline == BasisFitPipeline.Current && (r.Pose == BasisFitPose.TPose || r.Pose == BasisFitPose.Crouch)))
             {
                 Assert.That(Math.Abs(r.Metrics.FootGap), Is.LessThan(0.01f), $"{r.Scenario.Label}|{r.Pose}: tracked feet must stay on the floor after a slouched calibration");
             }
-        }
-        [Test]
-        public void DesktopLookingDownKeepsTheFeetDown()
-        {
-            var rows = new List<Row>();
-            foreach (BasisFitBodySpec avatar in BasisFitBodies.Avatars)
-            {
-                BasisFitScenario scenario = Scenario(BasisFitPipeline.Current, BasisSelectedHeightMode.EyeHeight, BasisFitTrackers.None, BasisFitBodies.Players[0], avatar);
-                using (BasisFitSimulation sim = BasisFitSimulation.Create(scenario))
-                {
-                    foreach (BasisFitPose pose in new[] { BasisFitPose.DesktopPitch, BasisFitPose.DesktopLookDown, BasisFitPose.DesktopLookAtFeet })
-                    {
-                        rows.Add(new Row { Scenario = scenario, Setup = sim.Setup, Pose = pose, Metrics = sim.Solve(pose) });
-                    }
-                }
-            }
-            Report("desktop", rows);
-            var failures = new List<string>();
-            Check(rows, failures, feetFromFloor: true);
-            Assert.That(failures, Is.Empty, string.Join("\n", failures.Take(60)));
-        }
-        [Test]
-        public void SeatedAndAirborneFeetDoNotPullTheBodyDown()
-        {
-            float Hips(bool seated, bool airborne)
-            {
-                BasisFitScenario scenario = Scenario(BasisFitPipeline.Current, BasisSelectedHeightMode.BestFit, BasisFitTrackers.None, BasisFitBodies.Players[0], BasisFitBodies.Realistic);
-                scenario.Seated = seated;
-                scenario.FeetAirborne = airborne;
-                using (BasisFitSimulation sim = BasisFitSimulation.Create(scenario))
-                {
-                    return sim.Solve(BasisFitPose.LookAtFeet).HipsHeightError;
-                }
-            }
-            float planted = Hips(false, false), seatedHips = Hips(true, false), airborneHips = Hips(false, true);
-            TestContext.WriteLine($"hips vs authored looking at the feet: planted {planted * 100f:0.00} cm, seated {seatedHips * 100f:0.00} cm, airborne {airborneHips * 100f:0.00} cm");
-            Assert.That(seatedHips, Is.GreaterThan(planted + 0.005f), "seated, the hips must not be pulled down to the floor");
-            Assert.That(airborneHips, Is.GreaterThan(planted + 0.005f), "airborne, the hips must not be pulled down to dangling feet");
         }
         [Test]
         public void TiltingTheHeadMovesTheBodySmoothly([Values(false, true)] bool desktop)
@@ -292,8 +244,6 @@ namespace Basis.Tests.Fitting
                         float pitch = -40f + step * 2f;
                         BasisFitMetrics m = sim.Solve(desktop ? BasisFitPose.DesktopPitch : BasisFitPose.LookPitch, pitch);
                         string label = $"{avatar.Name} pitch {pitch:0}";
-                        if (Math.Abs(m.FootGap) > 0.0025f * size) failures.Add($"{label}: feet {m.FootGap * 100f:0.00} cm off the floor");
-                        if (m.EyeError > m.SlipAllowance + 0.002f * size) failures.Add($"{label}: eye {m.EyeError * 100f:0.00} cm off, allowance {m.SlipAllowance * 100f:0.00} cm");
                         if (step > 0 && (Math.Abs(m.HipsHeightError - previousHips) > 0.01f * size || Math.Abs(m.EyeError - previousEye) > 0.01f * size))
                         {
                             failures.Add($"{label}: jumped hips {(m.HipsHeightError - previousHips) * 100f:0.00} cm, eye {(m.EyeError - previousEye) * 100f:0.00} cm in a 2 degree step");
