@@ -3267,14 +3267,6 @@
       "value": "How much quieter players outside your hearing cone become."
     },
     {
-      "key": "settings.remoteAudio.bufferedFrames.tooltip",
-      "value": "Voice frames buffered before playback; higher resists network jitter but adds delay."
-    },
-    {
-      "key": "settings.remoteAudio.clipBuffer.tooltip",
-      "value": "Size of the per-player audio buffer; higher is smoother but adds latency."
-    },
-    {
       "key": "settings.general.limitAudio.tooltip",
       "value": "Cap how many remote players can play audio at once to save performance."
     },
@@ -3385,14 +3377,6 @@
     {
       "key": "settings.remoteAudio.transmissionSurfaces.tooltip",
       "value": "How many walls sound can pass through before being silenced."
-    },
-    {
-      "key": "settings.remoteAudio.limitLipSync.tooltip",
-      "value": "Cap how many players get neural lip sync to save performance."
-    },
-    {
-      "key": "settings.remoteAudio.lipSyncSlots.tooltip",
-      "value": "Maximum number of players whose mouths animate to their voice at once."
     },
     {
       "key": "ui.advanced.tooltip",
@@ -11899,16 +11883,8 @@
       "value": "Transmission Type"
     },
     {
-      "key": "settings.remoteAudio.lipSync",
-      "value": "Lip Sync"
-    },
-    {
       "key": "settings.remoteAudio.lipSync.description",
       "value": "Controls how many players use neural lip sync (OpenLipSync).\nPlayers beyond this limit get no visemes until a slot frees up."
-    },
-    {
-      "key": "settings.remoteAudio.limitLipSync",
-      "value": "Limit OpenLipSync Slots"
     },
     {
       "key": "settings.developer.visualHelpers.title",
@@ -15255,14 +15231,6 @@
       "value": "Max Dampening"
     },
     {
-      "key": "settings.remoteAudio.bufferedFrames",
-      "value": "Buffered Frames Target"
-    },
-    {
-      "key": "settings.remoteAudio.clipBuffer",
-      "value": "Playback Clip Buffer"
-    },
-    {
       "key": "settings.remoteAudio.minDistance",
       "value": "Min Distance"
     },
@@ -15313,10 +15281,6 @@
     {
       "key": "settings.remoteAudio.transmissionSurfaces",
       "value": "Transmission Surfaces"
-    },
-    {
-      "key": "settings.remoteAudio.lipSyncSlots",
-      "value": "OpenLipSync Max Slots"
     },
     {
       "key": "settings.bodyTracking.avatarHeightScale",
@@ -16187,10 +16151,6 @@
     {
       "key": "settings.perm.title.select.user.description",
       "value": "Fill this user's UUID into the admin fields below."
-    },
-    {
-      "key": "settings.ra.title.voiceBuffer",
-      "value": "Voice Buffer"
     },
     {
       "key": "settings.microphone.noiseGate.auto",
@@ -18275,18 +18235,6 @@
     {
       "key": "settings.admin.confirm.unban.title",
       "value": "Unban player?"
-    },
-    {
-      "key": "settings.remoteAudio.bufferedFrames.description",
-      "value": "Each frame is 20 ms. 1 = ~20 ms (default, low latency, more dropouts).\n5 = ~100 ms. 15 = ~300 ms (max resilience)."
-    },
-    {
-      "key": "settings.remoteAudio.clipBuffer.description",
-      "value": "Multiplier on the per-player AudioClip length used by Unity's AudioSource.\nLower = tighter coupling to the decoded queue (less latency, more sensitive\nto underruns). Default: 2. Live audio sources reload in place when changed."
-    },
-    {
-      "key": "settings.remoteAudio.lipSyncSlots.description",
-      "value": "Number of concurrent OpenLipSync (neural viseme) instances.\nHigher = better lip sync on more players, but more CPU.\nDefault: 30. Players beyond this get no visemes until a slot frees up."
     },
     {
       "key": "settings.slimevr.fullReset",

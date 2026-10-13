@@ -14,13 +14,11 @@ public static partial class BasisOpenLipSyncDriver
     /// <summary>
     /// When true, <see cref="MaxSlots"/> is enforced as a hard cap.
     /// When false, slot count is unlimited (bounded only by players in viseme range).
-    /// Controlled by the settings toggle "Limit OpenLipSync Slots".
     /// </summary>
     public static bool UseSlotLimit = false;
 
     /// <summary>
     /// Maximum concurrent OpenLipSync contexts (only enforced when <see cref="UseSlotLimit"/> is true).
-    /// Controlled by the settings slider "OpenLipSync Max Slots".
     /// </summary>
     public static int MaxSlots = 30;
 

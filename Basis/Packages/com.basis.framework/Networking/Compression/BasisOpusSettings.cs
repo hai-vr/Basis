@@ -199,5 +199,5 @@ public static partial class RemoteOpusSettings
     /// decoded frame.
     /// </summary>
     public const int MaxFrameSize = 1920;
-    public static int JitterBufferSize = 5;
+    public static int JitterBufferSize = 1;
 }
