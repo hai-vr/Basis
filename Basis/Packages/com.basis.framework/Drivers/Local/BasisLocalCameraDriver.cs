@@ -926,6 +926,15 @@ namespace Basis.Scripts.Drivers
             if (Instance != null)
             {
                 Instance.CameraData.allowXRRendering = AllowXRRendering;
+                StereoTargetEyeMask targetEye = AllowXRRendering ? StereoTargetEyeMask.Both : StereoTargetEyeMask.None;
+                if (Instance.Camera.stereoTargetEye != targetEye)
+                {
+                    Instance.Camera.stereoTargetEye = targetEye;
+                    if (!AllowXRRendering)
+                    {
+                        Instance.Camera.ResetAspect();
+                    }
+                }
             }
             else
             {
