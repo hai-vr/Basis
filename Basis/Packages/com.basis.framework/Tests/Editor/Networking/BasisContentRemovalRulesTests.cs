@@ -21,14 +21,14 @@ public class BasisContentRemovalRulesTests
     public void AnyoneMayRemoveAnUnprotectedShare()
     {
         SetRemovalLock(false);
-        Assert.IsTrue(BasisContentShareManager.CanLocalPlayerRemove(4242, SharerUuid, false));
+        Assert.IsTrue(BasisContentShareManager.CanLocalPlayerRemove(4242, false));
     }
 
     [Test]
     public void NobodyButTheSharerAndModeratorsMayRemoveAProtectedPlayersShare()
     {
         SetRemovalLock(false);
-        Assert.IsFalse(BasisContentShareManager.CanLocalPlayerRemove(4242, SharerUuid, true));
+        Assert.IsFalse(BasisContentShareManager.CanLocalPlayerRemove(4242, true));
     }
 
     [Test]
@@ -44,9 +44,9 @@ public class BasisContentRemovalRulesTests
     {
         SetRemovalLock(true);
         Assert.IsTrue(BasisNetworkModeration.GlobalContentRemovalLocked);
-        Assert.IsFalse(BasisContentShareManager.CanLocalPlayerRemove(4242, SharerUuid, false));
+        Assert.IsFalse(BasisContentShareManager.CanLocalPlayerRemove(4242, false));
         BasisNetworkModeration.ResetGlobalLockState();
         Assert.IsFalse(BasisNetworkModeration.GlobalContentRemovalLocked, "leaving a server must drop its removal lock");
-        Assert.IsTrue(BasisContentShareManager.CanLocalPlayerRemove(4242, SharerUuid, false));
+        Assert.IsTrue(BasisContentShareManager.CanLocalPlayerRemove(4242, false));
     }
 }

@@ -346,10 +346,10 @@ public static partial class BasisContentShareManager
         }
     }
 
-    public static bool CanLocalPlayerRemove(ushort sharerId, string sharerUuid, bool sharerProtected)
+    public static bool CanLocalPlayerRemove(ushort sharerId, bool sharerProtected)
     {
         if (BasisNetworkModeration.LocalPlayerHasNode(BasisPermissions.PermNodes.protection)) return true;
-        if (BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId) && BasisLocalPlayer.Instance != null && IsLocalSharer(localId, BasisLocalPlayer.Instance.UUID, sharerId, sharerUuid)) return true;
+        if (BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId) && localId == sharerId) return true;
         return !sharerProtected && !BasisNetworkModeration.GlobalContentRemovalLocked;
     }
 
