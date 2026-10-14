@@ -943,7 +943,7 @@
     { "key": "editor.common.success", "value": "成功" },
     { "key": "editor.common.failed", "value": "失敗" },
 
-    { "key": "editor.sync.seat.title", "value": "Basis 座席同期" },
+    { "key": "editor.sync.seat.title", "value": "Basis Seat Sync" },
     { "key": "editor.sync.seat.description", "value": "信頼性の高い座席占有の同期です。着席すると着席者が全員に通知され、そのリモートプレイヤーが座席に座った状態になります。立ち上がれるのは着席者本人のみです。離散的かつ信頼性のある同期で、補間を行う値同期システムとは別物です。" },
     { "key": "editor.sync.seat.card", "value": "座席" },
     { "key": "editor.sync.seat.seatField", "value": "座席" },

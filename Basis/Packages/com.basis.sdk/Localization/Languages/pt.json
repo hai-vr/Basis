@@ -943,7 +943,7 @@
     { "key": "editor.common.success", "value": "Sucesso" },
     { "key": "editor.common.failed", "value": "Falhou" },
 
-    { "key": "editor.sync.seat.title", "value": "Sincronização de Assento do Basis" },
+    { "key": "editor.sync.seat.title", "value": "Basis Seat Sync" },
     { "key": "editor.sync.seat.description", "value": "Sincronização confiável da ocupação do assento. Sentar transmite o ocupante e coloca esse jogador remoto no assento; só o ocupante pode se levantar. Discreta + confiável: separada do sistema de sincronização de valores interpolados." },
     { "key": "editor.sync.seat.card", "value": "Assento" },
     { "key": "editor.sync.seat.seatField", "value": "Assento" },

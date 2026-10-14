@@ -943,7 +943,7 @@
     { "key": "editor.common.success", "value": "सफलता" },
     { "key": "editor.common.failed", "value": "विफल" },
 
-    { "key": "editor.sync.seat.title", "value": "Basis सीट सिंक" },
+    { "key": "editor.sync.seat.title", "value": "Basis Seat Sync" },
     { "key": "editor.sync.seat.description", "value": "सीट पर कौन बैठा है, इसका विश्वसनीय सिंक। बैठने पर सीट पर बैठे खिलाड़ी की जानकारी प्रसारित होती है और वह रिमोट खिलाड़ी सीट में बिठा दिया जाता है; केवल सीट पर बैठा खिलाड़ी ही उठ सकता है। डिस्क्रीट + विश्वसनीय: इंटरपोलेट किए जाने वाले वैल्यू-सिंक सिस्टम से अलग।" },
     { "key": "editor.sync.seat.card", "value": "सीट" },
     { "key": "editor.sync.seat.seatField", "value": "सीट" },

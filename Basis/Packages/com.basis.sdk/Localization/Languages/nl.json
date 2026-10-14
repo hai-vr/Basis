@@ -943,7 +943,7 @@
     { "key": "editor.common.success", "value": "Succes" },
     { "key": "editor.common.failed", "value": "Mislukt" },
 
-    { "key": "editor.sync.seat.title", "value": "Basis-zitplaatssynchronisatie" },
+    { "key": "editor.sync.seat.title", "value": "Basis Seat Sync" },
     { "key": "editor.sync.seat.description", "value": "Betrouwbare synchronisatie van zitplaatsbezetting. Gaan zitten zendt uit wie er zit en plaatst die externe speler in de zitplaats; alleen wie zit kan opstaan. Discreet + betrouwbaar, los van het geïnterpoleerde waardesynchronisatiesysteem." },
     { "key": "editor.sync.seat.card", "value": "Zitplaats" },
     { "key": "editor.sync.seat.seatField", "value": "Zitplaats" },

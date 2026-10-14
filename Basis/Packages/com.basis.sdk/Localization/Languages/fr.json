@@ -943,7 +943,7 @@
     { "key": "editor.common.success", "value": "Succès" },
     { "key": "editor.common.failed", "value": "Échec" },
 
-    { "key": "editor.sync.seat.title", "value": "Synchronisation de siège Basis" },
+    { "key": "editor.sync.seat.title", "value": "Basis Seat Sync" },
     { "key": "editor.sync.seat.description", "value": "Synchronisation fiable de l'occupation d'un siège. S'asseoir diffuse l'occupant et place ce joueur distant dans le siège ; seul l'occupant peut se lever. Discrète et fiable, distincte du système de synchronisation de valeurs interpolées." },
     { "key": "editor.sync.seat.card", "value": "Siège" },
     { "key": "editor.sync.seat.seatField", "value": "Siège" },

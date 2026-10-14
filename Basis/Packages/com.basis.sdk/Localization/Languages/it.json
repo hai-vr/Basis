@@ -943,7 +943,7 @@
     { "key": "editor.common.success", "value": "Successo" },
     { "key": "editor.common.failed", "value": "Fallito" },
 
-    { "key": "editor.sync.seat.title", "value": "Sincronizzazione seduta Basis" },
+    { "key": "editor.sync.seat.title", "value": "Basis Seat Sync" },
     { "key": "editor.sync.seat.description", "value": "Sincronizzazione affidabile dell'occupazione della seduta. Sedersi trasmette l'occupante e colloca quel giocatore remoto nella seduta; solo l'occupante può alzarsi. Basata su eventi discreti e affidabili, separata dal sistema di sincronizzazione dei valori interpolati." },
     { "key": "editor.sync.seat.card", "value": "Seduta" },
     { "key": "editor.sync.seat.seatField", "value": "Seduta" },

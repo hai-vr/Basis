@@ -943,7 +943,7 @@
     { "key": "editor.common.success", "value": "نجاح" },
     { "key": "editor.common.failed", "value": "فشل" },
 
-    { "key": "editor.sync.seat.title", "value": "مزامنة مقعد Basis" },
+    { "key": "editor.sync.seat.title", "value": "Basis Seat Sync" },
     { "key": "editor.sync.seat.description", "value": "مزامنة موثوقة لإشغال المقعد. يبثّ الجلوس الشاغل ويجلس ذلك اللاعب البعيد في المقعد؛ ولا يستطيع الوقوف إلا الشاغل. مزامنة منفصلة وموثوقة، ومستقلة عن نظام مزامنة القيم المستوفاة." },
     { "key": "editor.sync.seat.card", "value": "المقعد" },
     { "key": "editor.sync.seat.seatField", "value": "المقعد" },

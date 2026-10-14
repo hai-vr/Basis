@@ -943,7 +943,7 @@
     { "key": "editor.common.success", "value": "Erfolg" },
     { "key": "editor.common.failed", "value": "Fehlgeschlagen" },
 
-    { "key": "editor.sync.seat.title", "value": "Basis Sitz-Synchronisierung" },
+    { "key": "editor.sync.seat.title", "value": "Basis Seat Sync" },
     { "key": "editor.sync.seat.description", "value": "Zuverlässige Synchronisierung der Sitzbelegung. Beim Hinsetzen wird die sitzende Person übertragen und dieser entfernte Spieler in den Sitz versetzt; nur die sitzende Person kann wieder aufstehen. Diskret + zuverlässig, getrennt vom System zur Synchronisierung interpolierter Werte." },
     { "key": "editor.sync.seat.card", "value": "Sitz" },
     { "key": "editor.sync.seat.seatField", "value": "Sitz" },
@@ -1457,8 +1457,8 @@
     { "key": "editor.additionalData.colBehaviour", "value": "behaviour" },
     { "key": "editor.additionalData.colRate", "value": "rate/s" },
     { "key": "editor.additionalData.colChanged", "value": "chg/s" },
-    { "key": "editor.additionalData.colSize", "value": "größe" },
-    { "key": "editor.additionalData.colAge", "value": "alter" },
+    { "key": "editor.additionalData.colSize", "value": "Größe" },
+    { "key": "editor.additionalData.colAge", "value": "Alter" },
     { "key": "editor.additionalData.colPayload", "value": "payload (hex, erste Bytes)" },
     { "key": "editor.additionalData.payloadFrozen", "value": "Der Payload fließt, aber seine Bytes ändern sich nie: Die Datenkonvertierung vor diesem Hop ist eingefroren." },
 
