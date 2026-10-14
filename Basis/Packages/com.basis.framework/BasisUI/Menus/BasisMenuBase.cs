@@ -165,7 +165,7 @@ namespace Basis.BasisUI
             BasisNotificationCategory category = BasisNotificationCategory.System)
         {
             bool route = divertible && BasisNotificationCenter.RouteToNotifications;
-            if (!route && Dialogue)
+            if (!route && Dialogue && !Dialogue.IsReleased)
             {
                 BasisDebug.LogWarning("An existing Dialogue window is already active.");
                 return;
@@ -192,7 +192,7 @@ namespace Basis.BasisUI
             BasisNotificationCategory category = BasisNotificationCategory.System)
         {
             bool route = divertible && BasisNotificationCenter.RouteToNotifications;
-            if (!route && Dialogue)
+            if (!route && Dialogue && !Dialogue.IsReleased)
             {
                 BasisDebug.LogWarning("An existing Dialogue window is already active.");
                 return;

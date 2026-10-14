@@ -2523,10 +2523,6 @@
       "value": "Show debug visual markers in the world for diagnostics."
     },
     {
-      "key": "settings.developer.skeletonLines.tooltip",
-      "value": "Draw lines along avatar bones to visualize the skeleton."
-    },
-    {
       "key": "settings.developer.calibrationSpheres.tooltip",
       "value": "Show spheres marking body calibration points."
     },
@@ -2699,10 +2695,6 @@
       "value": "On: remote players using face tracking stop audio lip sync (visemes), so only their tracked mouth shows. Off: both combined."
     },
     {
-      "key": "settings.developer.audioDebug.enable.tooltip",
-      "value": "Show debugging information about remote players' audio."
-    },
-    {
       "key": "settings.developer.audioDebug.source.tooltip",
       "value": "Show details about each remote player's audio source."
     },
@@ -2725,10 +2717,6 @@
     {
       "key": "settings.developer.audioDebug.viseme.tooltip",
       "value": "Show viseme and mouth-shape data driven by remote audio."
-    },
-    {
-      "key": "settings.developer.avatarDataDebug.enable.tooltip",
-      "value": "Show debugging information about remote avatar data."
     },
     {
       "key": "settings.developer.avatarDataDebug.receive.tooltip",
@@ -5924,7 +5912,7 @@
     },
     {
       "key": "menu.individualPlayer.audioDebug.description",
-      "value": "Live audio chain diagnostics. Toggle sections in Settings > Developer."
+      "value": "Live audio chain diagnostics."
     },
     {
       "key": "menu.individualPlayer.showAudioDebug",
@@ -5964,7 +5952,7 @@
     },
     {
       "key": "menu.individualPlayer.avatarDataDebug.description",
-      "value": "Live avatar network/interpolation diagnostics. Toggle sections in Settings > Developer."
+      "value": "Live avatar network/interpolation diagnostics."
     },
     {
       "key": "menu.individualPlayer.showAvatarDataDebug",
@@ -12011,11 +11999,7 @@
       "value": "Gizmos"
     },
     {
-      "key": "settings.developer.group.gizmos",
-      "value": "Gizmos & Overlays"
-    },
-    {
-      "key": "settings.developer.group.tracking",
+      "key": "trackerLinking.trackingCalibration",
       "value": "Tracking & Calibration"
     },
     {
@@ -12033,10 +12017,6 @@
     {
       "key": "settings.developer.group.packages",
       "value": "Package Tools"
-    },
-    {
-      "key": "settings.developer.group.remoteDebug",
-      "value": "Remote Player Debug"
     },
     {
       "key": "settings.developer.group.trackingDiagnostics",
@@ -12057,14 +12037,6 @@
     {
       "key": "settings.developer.showGizmos.description",
       "value": "Master switch for the gizmo system. When off, none of the gizmos below are drawn."
-    },
-    {
-      "key": "settings.developer.skeletonLines",
-      "value": "Skeleton Lines"
-    },
-    {
-      "key": "settings.developer.skeletonLines.description",
-      "value": "Draws colored lines connecting tracked bones to their parents — visualizes the skeleton chain."
     },
     {
       "key": "settings.developer.calibrationSpheres",
@@ -12207,19 +12179,19 @@
       "value": "Eye Tracking"
     },
     {
-      "key": "settings.developer.eyeTracking.preferOsc",
+      "key": "trackerLinking.eyeTracking.preferOsc",
       "value": "Prefer Face Tracking Gaze"
     },
     {
-      "key": "settings.developer.eyeTracking.preferOsc.tooltip",
+      "key": "trackerLinking.eyeTracking.preferOsc.tooltip",
       "value": "When both a headset's eye gaze and OSC face tracking are active, use the OSC face tracker for gaze. Turn off to prefer the headset's built-in eye gaze. Eyelid/blink always comes from face tracking."
     },
     {
-      "key": "settings.developer.eyeTracking.autoFoveation",
+      "key": "trackerLinking.eyeTracking.autoFoveation",
       "value": "Auto Gaze Foveation"
     },
     {
-      "key": "settings.developer.eyeTracking.autoFoveation.tooltip",
+      "key": "trackerLinking.eyeTracking.autoFoveation.tooltip",
       "value": "When an eye-tracking headset is detected, ask once to enable gaze-foveated Variable Rate Shading, then remember the choice per headset. Auto-disables when no eye-tracking headset is present (desktop, or a headset without eye tracking)."
     },
     {
@@ -12228,7 +12200,7 @@
     },
     {
       "key": "settings.eyeFoveation.prompt.body",
-      "value": "Your headset reports eye tracking. Enable gaze foveation (Variable Rate Shading) to render in full detail where you look and save GPU elsewhere? You can change this anytime in Settings → Developer → Eye Tracking."
+      "value": "Your headset reports eye tracking. Enable gaze foveation (Variable Rate Shading) to render in full detail where you look and save GPU elsewhere? You can change this anytime in Settings → Tracker Settings → Tracking & Calibration."
     },
     {
       "key": "settings.eyeFoveation.prompt.enable",
@@ -13187,19 +13159,19 @@
       "value": "Show live connection and bandwidth diagnostics."
     },
     {
-      "key": "settings.developer.calibrationCsv",
+      "key": "trackerLinking.calibrationCsv",
       "value": "Dump Calibration CSV"
     },
     {
-      "key": "settings.developer.calibrationCsv.tooltip",
+      "key": "trackerLinking.calibrationCsv.tooltip",
       "value": "Write a CSV of every calibration stage (scales, positions, rotation eulers and offsets) to persistentDataPath/CalibrationDebug on the next avatar calibration. Use to debug flipped/inverted bones."
     },
     {
-      "key": "settings.developer.calibrationDebug",
+      "key": "trackerLinking.calibrationDebug",
       "value": "Calibration Debug Tools"
     },
     {
-      "key": "settings.developer.calibrationDebug.tooltip",
+      "key": "trackerLinking.calibrationDebug.tooltip",
       "value": "Show the calibration report and lock-in guide controls in the Calibration panel."
     },
     {
@@ -13209,10 +13181,6 @@
     {
       "key": "settings.developer.remoteAudioDebug.description",
       "value": "Controls which audio debug sections appear in per-player panels."
-    },
-    {
-      "key": "settings.developer.audioDebug.enable",
-      "value": "Enable Audio Debug"
     },
     {
       "key": "settings.developer.audioDebug.enable.description",
@@ -13257,10 +13225,6 @@
     {
       "key": "settings.developer.remoteAvatarDebug.description",
       "value": "Controls which avatar data-chain debug sections appear in per-player panels."
-    },
-    {
-      "key": "settings.developer.avatarDataDebug.enable",
-      "value": "Enable Avatar Data Debug"
     },
     {
       "key": "settings.developer.avatarDataDebug.enable.description",
@@ -15087,11 +15051,11 @@
       "value": "Developer Options"
     },
     {
-      "key": "settings.developer.alwaysShowCalibration",
+      "key": "trackerLinking.alwaysShowCalibration",
       "value": "Always Show Calibration"
     },
     {
-      "key": "settings.developer.alwaysShowCalibration.tooltip",
+      "key": "trackerLinking.alwaysShowCalibration.tooltip",
       "value": "Keep the calibration menu available even when full body tracking is off."
     },
     {

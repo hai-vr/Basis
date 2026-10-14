@@ -66,8 +66,23 @@ namespace Basis.BasisUI
             {
                 return meta.Name;
             }
-            string name = Uri.TryCreate(url, UriKind.Absolute, out Uri uri) ? System.IO.Path.GetFileNameWithoutExtension(Uri.UnescapeDataString(uri.AbsolutePath)) : string.Empty;
+            string name = Uri.TryCreate(url, UriKind.Absolute, out Uri uri) ? NameFromPath(uri.AbsolutePath) : string.Empty;
             return string.IsNullOrEmpty(name) ? url : name;
+        }
+
+        private static string NameFromPath(string path)
+        {
+            try
+            {
+                path = Uri.UnescapeDataString(path);
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
+            string file = path.Substring(path.LastIndexOf('/') + 1);
+            int dot = file.LastIndexOf('.');
+            return dot < 0 ? file : file.Substring(0, dot);
         }
 
         private static void EnsureLanguageHook()

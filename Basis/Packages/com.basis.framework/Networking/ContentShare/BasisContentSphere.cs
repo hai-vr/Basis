@@ -29,7 +29,7 @@ public partial class BasisContentSphere : BasisInteractableObject
     public string CreatorUUID { get; private set; }
     public string CreatorDisplayName { get; private set; }
     public bool SharerProtected { get; private set; }
-    public bool CanLocalPlayerRemove => BasisContentShareManager.CanLocalPlayerRemove(CreatorPlayerID, SharerProtected);
+    public bool CanLocalPlayerRemove => BasisContentShareManager.CanLocalPlayerRemove(CreatorPlayerID, CreatorUUID, SharerProtected);
     public string CreatorSafeDisplayName
     {
         get

@@ -278,10 +278,15 @@ public static partial class SettingsProviderIK
             eyeTrackingToggle.AssignBinding(BasisSettingsDefaults.EnableEyeTracking);
             eyeTrackingToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.eyeTracking.title.tooltip"));
 
+            SettingsProvider.AddDeveloperGizmoToggle(trackingParent, "settings.developer.eyeGazeGizmo", BasisSettingsDefaults.GizmoEyeGaze);
+            SettingsProvider.AddDeveloperGizmoToggle(trackingParent, "settings.developer.mouthEye", BasisSettingsDefaults.GizmoMouthEye);
+
             var footIKToggle = PanelToggle.CreateNewEntry(trackingParent);
             footIKToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.footIk"));
             footIKToggle.AssignBinding(BasisSettingsDefaults.FootIKEnabled);
             footIKToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.footIk.tooltip"));
+
+            SettingsProvider.AddDeveloperGizmoToggle(trackingParent, "settings.developer.footPlacement", BasisSettingsDefaults.GizmoFootPlacement);
 
             var disableAnimInFBTToggle = PanelToggle.CreateNewEntry(trackingParent);
             disableAnimInFBTToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.bodyTracking.disableAnimFbt"));
@@ -838,6 +843,10 @@ public static partial class SettingsProviderIK
                 ApplySolveGizmoVisibility(value);
                 RebuildLayoutChain(gizmoParent, tabDesc);
             };
+
+            SettingsProvider.AddDeveloperGizmoToggle(gizmoParent, "settings.developer.ikColliders", BasisSettingsDefaults.GizmoIKColliders);
+            SettingsProvider.AddDeveloperGizmoToggle(gizmoParent, "settings.developer.hintOffsets", BasisSettingsDefaults.GizmoHintOffsets);
+            SettingsProvider.AddDeveloperGizmoToggle(gizmoParent, "settings.developer.seatTargets", BasisSettingsDefaults.GizmoSeatTargets);
         });
 
         colliderGroup.gameObject.SetActive(BasisSettingsDefaults.FBIKAdvancedVisible.RawValue);
@@ -1187,6 +1196,13 @@ public static partial class SettingsProviderIK
         // IK Collider & Tuning
         BasisSettingsDefaults.FBIKAdvancedVisible.ResetToDefault();
         Basis.Scripts.Debugging.BasisIKSolveGizmoStages.ResetToDefaults();
+        BasisSettingsDefaults.GizmoCalibrationSpheres.ResetToDefault();
+        BasisSettingsDefaults.GizmoEyeGaze.ResetToDefault();
+        BasisSettingsDefaults.GizmoMouthEye.ResetToDefault();
+        BasisSettingsDefaults.GizmoFootPlacement.ResetToDefault();
+        BasisSettingsDefaults.GizmoIKColliders.ResetToDefault();
+        BasisSettingsDefaults.GizmoHintOffsets.ResetToDefault();
+        BasisSettingsDefaults.GizmoSeatTargets.ResetToDefault();
         BasisSettingsDefaults.FBIKCollisionsEnabled.ResetToDefault();
         BasisSettingsDefaults.FootIKEnabled.ResetToDefault();
         BasisSettingsDefaults.DisableAnimationsInFBT.ResetToDefault();
@@ -1355,6 +1371,8 @@ public static partial class SettingsProviderIK
         {
             _uiCalibSphereScale.Descriptor.SetTooltip(BasisLocalization.Get("settings.bodyTracking.calibSphereScale.tooltip"));
         }
+
+        SettingsProvider.AddDeveloperGizmoToggle(parent, "settings.developer.calibrationSpheres", BasisSettingsDefaults.GizmoCalibrationSpheres);
 
         RebindBoneEditor();
     }

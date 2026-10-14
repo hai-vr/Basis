@@ -3061,41 +3061,6 @@ MonoBehaviour:
     Since: 
     ObsoleteMsg: 
     Platforms: []
-  - TypeFullName: Basis.BasisUI.SettingsProviderBugReport
-    MemberName: SettingsProviderBugReport
-    Kind: Type
-    ParamCount: 0
-    ParamNames: []
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 1
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: "Developer-tab \"Report a Bug\" section. Mirrors the fields of the project's\n
-      GitHub bug form (.github/ISSUE_TEMPLATE/1-bug.yml) and, on submit, opens\n
-      GitHub's new-issue page for that form with every field pre-filled through\n
-      query parameters. The user reviews and submits on GitHub, so no API token\n
-      or auth has to live in the client."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
   - TypeFullName: 
     MemberName: StoreData
     Kind: Method
@@ -65003,40 +64968,6 @@ MonoBehaviour:
     Summary: "Toggles visibility on every cached calibration-sphere gizmo. Called
       by\n SMModuleDebugOptions when the calibration-spheres sub-toggle\n flips so
       the spheres actually appear and disappear in the scene."
-    Remarks: 
-    Returns: 
-    Value: 
-    Examples: []
-    TypeParamNames: []
-    TypeParamDocs: []
-    ExceptionCrefs: []
-    ExceptionDocs: []
-    SeeCrefs: []
-    SeeAlsoCrefs: []
-    Since: 
-    ObsoleteMsg: 
-    Platforms: []
-  - TypeFullName: Basis.Scripts.Drivers.
-    MemberName: ApplySkeletonLineVisibility
-    Kind: Method
-    ParamCount: 1
-    ParamNames:
-    - 0
-    ParamDocs: []
-    BaseTypeName: 
-    Interfaces: []
-    IsAbstract: 0
-    IsSealed: 0
-    IsStatic: 0
-    IsPartial: 0
-    IsMemberStatic: 0
-    IsMemberReadOnly: 0
-    IsMemberConst: 0
-    IsMemberVirtual: 0
-    IsMemberOverride: 0
-    Summary: "Toggles visibility on each skeleton-chain gizmo. Mirror of\n ApplyCalibrationSphereVisibility
-      \u2014 flag alone gates the\n per-frame UpdateLineGizmo call, but the line
-      GameObjects need an\n explicit hide/show to actually appear/disappear."
     Remarks: 
     Returns: 
     Value: 

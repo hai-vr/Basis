@@ -43,6 +43,23 @@ public static class SettingsProviderPlatform
             softSwapField.SetValue($"{dm.AutoSwapPreviousVRMode} (kept alive)");
         }
 
+        if (!BasisDeviceManagement.IsStandaloneDevice)
+        {
+            PanelDropdown dropdownSwapMode = PanelDropdown.CreateNewEntry(infoGroup.ContentParent);
+            dropdownSwapMode.Descriptor.SetTitle(BasisLocalization.Get("settings.platform.swapMode.title"));
+            dropdownSwapMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.platform.swapMode.title.tooltip"));
+            dropdownSwapMode.AssignLocalizedEntries(new List<string>
+            {
+                BasisSettingsDefaults.SwapMode_Shutdown,
+                BasisSettingsDefaults.SwapMode_AutoSwap
+            }, new List<string>
+            {
+                "settings.platform.swapMode.shutdown",
+                "settings.platform.swapMode.autoSwap"
+            });
+            dropdownSwapMode.AssignBinding(BasisSettingsDefaults.SwapMode);
+        }
+
         // Offered next to the manual switch buttons because turning it off is what leaves those
         // buttons as the only way to change mode. Hidden where no SDK reports presence at all,
         // since the toggle would govern a signal that never arrives.
@@ -106,29 +123,6 @@ public static class SettingsProviderPlatform
         }
 
         PanelSectionToggleHelpers.FinalizeCollapsibleGroup(deviceModeToggle, infoGroup, true, onExpandedChanged);
-    }
-
-    public static void BuildAutoSwapUI(RectTransform container)
-    {
-#if BASIS_HAS_OPENVR || BASIS_HAS_OPENXR
-        PanelElementDescriptor autoSwapGroup =
-            PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-        autoSwapGroup.SetTitle(BasisLocalization.Get("settings.platform.swapMode.title"));
-
-        PanelDropdown dropdownSwapMode = PanelDropdown.CreateNewEntry(autoSwapGroup);
-        dropdownSwapMode.Descriptor.SetTitle(BasisLocalization.Get("settings.platform.swapMode.title"));
-        dropdownSwapMode.Descriptor.SetTooltip(BasisLocalization.Get("settings.platform.swapMode.title.tooltip"));
-        dropdownSwapMode.AssignLocalizedEntries(new System.Collections.Generic.List<string>
-        {
-            BasisSettingsDefaults.SwapMode_Shutdown,
-            BasisSettingsDefaults.SwapMode_AutoSwap
-        }, new System.Collections.Generic.List<string>
-        {
-            "settings.platform.swapMode.shutdown",
-            "settings.platform.swapMode.autoSwap"
-        });
-        dropdownSwapMode.AssignBinding(BasisSettingsDefaults.SwapMode);
-#endif
     }
 
     private static string GetModeDisplayName(string mode) => BasisXRRuntimeNotice.ModeDisplayName(mode);

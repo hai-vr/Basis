@@ -1,6 +1,7 @@
 using Unity.Scripting.LifecycleManagement;
 using Basis.BasisUI;
 using Basis.Network.Core;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
 using Basis.Scripts.Drivers;
@@ -345,12 +346,14 @@ public static partial class BasisContentShareManager
         }
     }
 
-    public static bool CanLocalPlayerRemove(ushort sharerId, bool sharerProtected)
+    public static bool CanLocalPlayerRemove(ushort sharerId, string sharerUuid, bool sharerProtected)
     {
         if (BasisNetworkModeration.LocalPlayerHasNode(BasisPermissions.PermNodes.protection)) return true;
-        if (BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId) && localId == sharerId) return true;
+        if (BasisNetworkConnection.TryGetLocalPlayerID(out ushort localId) && BasisLocalPlayer.Instance != null && IsLocalSharer(localId, BasisLocalPlayer.Instance.UUID, sharerId, sharerUuid)) return true;
         return !sharerProtected && !BasisNetworkModeration.GlobalContentRemovalLocked;
     }
+
+    public static bool IsLocalSharer(ushort localId, string localUuid, ushort sharerId, string sharerUuid) => localId == sharerId && string.Equals(localUuid, sharerUuid, StringComparison.Ordinal);
 
     private static List<BasisShareableAction> RemoveActions(string sphereId, BasisContentSphere sphere)
     {

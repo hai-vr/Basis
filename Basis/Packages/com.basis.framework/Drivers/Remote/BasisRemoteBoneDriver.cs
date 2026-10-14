@@ -457,17 +457,18 @@ public struct ApplyRootAndScaleJob : IJobParallelForTransform
 }
 
 /// <summary>
-/// Reads the FK-posed world pose (+ root local rotation) of the bones the end-effector IK needs, into
+/// Reads the FK-posed world pose (+ local rotation) of the bones the end-effector IK needs, into
 /// flat buffers parallel to the skeleton TAA, and clears the per-bone override mask. Only the 12 effector
-/// slots (LHand/RHand/LFoot/RFoot × root/joint/tip) of players anchored THIS frame do the expensive
-/// transform read — every other bone just clears its (cheap byte) mask and returns. Scheduled after the
-/// skeleton FK + hips-world apply so the world poses are final.
+/// slots (LHand/RHand/LFoot/RFoot × root/joint/tip) plus neck/head (the arm frame) of players anchored
+/// THIS frame do the expensive transform read — every other bone just clears its (cheap byte) mask and
+/// returns. Scheduled after the skeleton FK + hips-world apply so the world poses are final.
 /// </summary>
 [BurstCompile]
 public struct ReadBonePoseJob : IJobParallelForTransform
 {
     // Bits set for BONE_WRITE_ORDER slots 5..12 (roots+joints) and 15..18 (tips). See EffectorIKComputeJob.
     const uint EffectorSlotMask = 0x79FE0u;
+    const uint FrameSlotMask = 0x18u;
 
     [ReadOnly] public NativeArray<int> PlayerKeys;
     [ReadOnly, NativeDisableContainerSafetyRestriction] public NativeArray<byte> EffMask;
@@ -484,11 +485,17 @@ public struct ReadBonePoseJob : IJobParallelForTransform
 
         int dense = index / BoneCount;
         int boneSlot = index - dense * BoneCount;
-        if (((EffectorSlotMask >> boneSlot) & 1u) == 0) return;
+        bool limb = ((EffectorSlotMask >> boneSlot) & 1u) != 0;
+        if (!limb && ((FrameSlotMask >> boneSlot) & 1u) == 0) return;
 
         int key = PlayerKeys[dense];
         if ((uint)key >= (uint)CapacityFixed || EffMask[key] == 0) return;
 
+        if (!limb)
+        {
+            ReadPos[index] = transform.position;
+            return;
+        }
         transform.GetPositionAndRotation(out Vector3 position, out Quaternion rotation);
         ReadPos[index] = position;
         ReadWorldRot[index] = rotation;
@@ -2082,7 +2089,8 @@ public static partial class RemoteBoneJobSystem
             var ikComputeJob = BasisRemoteNetworkDriver.ScheduleComputeEffectorIK(
                 sKeyArray, AuthoringLength, BasisBoneRotationCompression.SyncBoneCount,
                 sTmpHipsWorldPos, sTmpHipsWorldRot,
-                sIkReadPos, sIkReadWorldRot, sIkReadLocalRot, sSkeletonValid.AsDeferredJobArray(),
+                sIkReadPos, sIkReadWorldRot, sIkReadLocalRot,
+                sSkeletonDecodePre.AsDeferredJobArray(), sSkeletonDecodePost.AsDeferredJobArray(), sSkeletonValid.AsDeferredJobArray(),
                 sIkOverrideRot, sIkOverrideMask, ikBatch, readPoseJob);
 
             effectorIkJob = new WriteBoneRotationJob

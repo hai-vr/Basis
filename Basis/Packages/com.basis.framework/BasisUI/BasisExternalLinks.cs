@@ -210,7 +210,7 @@ namespace Basis.BasisUI
                 Defer(ask, title, body);
                 return;
             }
-            if (BasisMainMenu.Instance.Dialogue)
+            if (BasisMainMenu.Instance.Dialogue && !BasisMainMenu.Instance.Dialogue.IsReleased)
             {
                 BasisMainMenu.Instance.Dialogue.OnInstanceReleased += () => BasisDeviceManagement.EnqueueOnMainThread(() => Show(ask));
                 return;

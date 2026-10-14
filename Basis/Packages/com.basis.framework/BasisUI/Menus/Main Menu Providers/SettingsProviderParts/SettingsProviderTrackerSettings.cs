@@ -145,6 +145,9 @@ namespace Basis.BasisUI
             ignoreHandTrackingToggle.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.ignoreHandTracking.tooltip"));
             ignoreHandTrackingToggle.AssignBinding(BasisSettingsDefaults.IgnoreHandTrackingDevices);
 
+            SettingsProvider.AddDeveloperGizmoToggle(tabRoot, "settings.developer.trackerGizmos", BasisSettingsDefaults.TrackerGizmos);
+            SettingsProvider.AddDeveloperGizmoToggle(tabRoot, "settings.developer.linkedTrackerLines", BasisSettingsDefaults.LinkedTrackerLines);
+
             // Connector trackers toggle — hides the per-tracker list (linking +
             // role override dropdowns) so a configured player doesn't have to
             // scroll past every device on every visit. Same opt-in pattern as
@@ -223,6 +226,7 @@ namespace Basis.BasisUI
 
             SettingsProviderDeviceOverrides.Build(tabRoot);
             SettingsProviderDeviceOffsets.Build(tabRoot);
+            BuildTrackingCalibrationSection(tabRoot);
 
             // Webcam / external tracking sections injected by feature packages
             // (e.g. MediaPipe). Built above the page reset so the reset stays last.
@@ -944,12 +948,68 @@ namespace Basis.BasisUI
             }
         }
 
+        private static void BuildTrackingCalibrationSection(RectTransform container)
+        {
+            PanelSectionToggle trackingToggle = PanelSectionToggle.CreateNewEntry(container);
+            trackingToggle.SetTitle(BasisLocalization.Get("trackerLinking.trackingCalibration"));
+            int trackingStart = container.childCount;
+
+            PanelToggle togglePreferOscEye = PanelToggle.CreateNewEntry(container);
+            togglePreferOscEye.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.eyeTracking.preferOsc"));
+            togglePreferOscEye.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.eyeTracking.preferOsc.tooltip"));
+            togglePreferOscEye.AssignBinding(BasisSettingsDefaults.EyeTrackingPreferOsc);
+
+            PanelToggle toggleAutoFoveation = PanelToggle.CreateNewEntry(container);
+            toggleAutoFoveation.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.eyeTracking.autoFoveation"));
+            toggleAutoFoveation.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.eyeTracking.autoFoveation.tooltip"));
+            toggleAutoFoveation.AssignBinding(BasisSettingsDefaults.EyeFoveationAutoManage);
+
+            PanelToggle toggleFaceTrackLipSync = PanelToggle.CreateNewEntry(container);
+            toggleFaceTrackLipSync.Descriptor.SetTitle(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers"));
+            toggleFaceTrackLipSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers.tooltip"));
+            toggleFaceTrackLipSync.Descriptor.SetDescription(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers.description"));
+            toggleFaceTrackLipSync.AssignBinding(BasisSettingsDefaults.DisableLipSyncForFaceTracking);
+
+            PanelToggle toggleAlwaysShowCalibration = PanelToggle.CreateNewEntry(container);
+            toggleAlwaysShowCalibration.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.alwaysShowCalibration"));
+            toggleAlwaysShowCalibration.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.alwaysShowCalibration.tooltip"));
+            toggleAlwaysShowCalibration.AssignBinding(BasisSettingsDefaults.DevAlwaysShowCalibration);
+
+            PanelToggle toggleCalibrationCsv = PanelToggle.CreateNewEntry(container);
+            toggleCalibrationCsv.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.calibrationCsv"));
+            toggleCalibrationCsv.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.calibrationCsv.tooltip"));
+            toggleCalibrationCsv.AssignBinding(BasisSettingsDefaults.DumpCalibrationCsv);
+
+            PanelToggle toggleCalibrationDebug = PanelToggle.CreateNewEntry(container);
+            toggleCalibrationDebug.Descriptor.SetTitle(BasisLocalization.Get("trackerLinking.calibrationDebug"));
+            toggleCalibrationDebug.Descriptor.SetTooltip(BasisLocalization.Get("trackerLinking.calibrationDebug.tooltip"));
+            toggleCalibrationDebug.AssignBinding(BasisSettingsDefaults.DevShowCalibrationDebug);
+
+            // Auto-estimate scale before calibrating: guess standing height from the live HMD so an uncalibrated
+            // VR session is roughly the right size. Superseded the moment you calibrate. (Developer-only.)
+            // PanelToggle toggleAutoScale = PanelToggle.CreateNewEntry(container);
+            // toggleAutoScale.Descriptor.SetTitle("Auto-estimate scale (uncalibrated)");
+            // toggleAutoScale.Descriptor.SetTooltip("Before you calibrate, guess your height from the headset so the avatar isn't wildly mis-scaled. A real calibration overrides it.");
+            // toggleAutoScale.AssignBinding(BasisSettingsDefaults.AutoScaleEstimateEnabled);
+
+            PanelElementDescriptor box = null;
+            box = PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(trackingToggle, container, trackingStart, false, _ =>
+            {
+                if (box != null)
+                {
+                    PanelElementDescriptor.RebuildLayoutChain(box.rectTransform, container);
+                }
+            });
+        }
+
         private static void ResetTrackerSettingsDefaults()
         {
             BasisSettingsDefaults.TrackerLinkingAdvancedVisible.ResetToDefault();
             BasisSettingsDefaults.TrackerLinkingConnectorVisible.ResetToDefault();
             BasisSettingsDefaults.TrustSteamVRRoles.ResetToDefault();
             BasisSettingsDefaults.IgnoreHandTrackingDevices.ResetToDefault();
+            BasisSettingsDefaults.TrackerGizmos.ResetToDefault();
+            BasisSettingsDefaults.LinkedTrackerLines.ResetToDefault();
             BasisSettingsDefaults.PairingSurprisePenalty.ResetToDefault();
             BasisSettingsDefaults.PairingSurpriseClamp.ResetToDefault();
             BasisSettingsDefaults.PairingEmaFloor.ResetToDefault();
@@ -961,6 +1021,13 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.PairingWeightSmoothing.ResetToDefault();
             BasisSettingsDefaults.PairingRotationHalfLife.ResetToDefault();
             BasisSettingsDefaults.CalibrationTolerance.ResetToDefault();
+            BasisSettingsDefaults.EyeTrackingPreferOsc.ResetToDefault();
+            BasisSettingsDefaults.EyeFoveationAutoManage.ResetToDefault();
+            BasisSettingsDefaults.DisableLipSyncForFaceTracking.ResetToDefault();
+            BasisSettingsDefaults.DevAlwaysShowCalibration.ResetToDefault();
+            BasisSettingsDefaults.DumpCalibrationCsv.ResetToDefault();
+            BasisSettingsDefaults.DevShowCalibrationDebug.ResetToDefault();
+            BasisSettingsDefaults.AutoScaleEstimateEnabled.ResetToDefault();
             BasisTrackerRoleOverride.ClearAll();
             BasisTrackerPairing.ClearAll();
             BasisTrackerIdentifyGizmos.ClearAll();

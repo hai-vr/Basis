@@ -39,13 +39,11 @@ public partial class SMModuleDebugOptions : BasisSettingsBase
 
     // Per-gizmo toggles. All default off; the derived UseGizmos gate
     // (RecomputeUseGizmos) stays off until the user enables at least one.
-    public static bool UseSkeletonLines = false;
     public static bool UseCalibrationSpheres = false;
     public static bool UseJiggleVisuals = false;
 
     // --- Canonical setting keys (from defaults) ---
     private static string K_SHOW_GIZMOS => BasisSettingsDefaults.ShowGizmos.BindingKey;                       // "showgizmos"
-    private static string K_GIZMO_SKELETON_LINES => BasisSettingsDefaults.GizmoSkeletonLines.BindingKey;       // "gizmoskeletonlines"
     private static string K_GIZMO_CALIB_SPHERES => BasisSettingsDefaults.GizmoCalibrationSpheres.BindingKey;   // "gizmocalibrationspheres"
     private static string K_GIZMO_JIGGLE_VISUALS => BasisSettingsDefaults.GizmoJiggleVisuals.BindingKey;       // "gizmojigglevisuals"
     private static string K_TRACKER_GIZMOS => BasisSettingsDefaults.TrackerGizmos.BindingKey;                  // "trackergizmos"
@@ -228,20 +226,6 @@ public partial class SMModuleDebugOptions : BasisSettingsBase
             // The master gizmo toggle was removed from the UI; rendering is now derived
             // from the individual gizmo toggles. Recompute in case a persisted legacy
             // value still fires this key.
-            RecomputeUseGizmos();
-            return;
-        }
-
-        if (matchedSettingName == K_GIZMO_SKELETON_LINES)
-        {
-            if (bool.TryParse(optionValue, out UseSkeletonLines))
-            {
-                BasisLocalPlayer player = BasisLocalPlayer.Instance;
-                if (player != null && player.LocalBoneDriver != null)
-                {
-                    player.LocalBoneDriver.ApplySkeletonLineVisibility();
-                }
-            }
             RecomputeUseGizmos();
             return;
         }
@@ -491,7 +475,6 @@ public partial class SMModuleDebugOptions : BasisSettingsBase
     private void RecomputeUseGizmos()
     {
         bool anyOn =
-            UseSkeletonLines ||
             UseCalibrationSpheres ||
             UseJiggleVisuals ||
             UseTrackerGizmos ||

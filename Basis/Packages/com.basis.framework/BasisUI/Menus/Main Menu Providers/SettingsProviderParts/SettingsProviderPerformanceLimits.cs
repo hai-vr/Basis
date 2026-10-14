@@ -224,6 +224,8 @@ public static partial class SettingsProviderPerformanceLimits
             toggleTooltip: BasisLocalization.Get("settings.perf.jiggleSimulationLod.toggle.tooltip"),
             sliderTooltip: BasisLocalization.Get("settings.perf.jiggleSimulationLod.slider.tooltip"));
 
+        SettingsProvider.AddDeveloperGizmoToggle(physics.ContentParent, "settings.developer.jiggleVisuals", BasisSettingsDefaults.GizmoJiggleVisuals);
+
         PanelSectionToggleHelpers.FinalizeCollapsibleGroup(physicsToggle, physics, false, _ => ForceLayout());
 
         PanelSectionToggle effectsToggle = PanelSectionToggle.CreateNewEntry(contentParent);
@@ -408,6 +410,7 @@ public static partial class SettingsProviderPerformanceLimits
         BasisSettingsDefaults.JiggleColliderLodFarDistance.ResetToDefault();
         BasisSettingsDefaults.UseJiggleSimulationDistanceLod.ResetToDefault();
         BasisSettingsDefaults.JiggleSimulationLodDistance.ResetToDefault();
+        BasisSettingsDefaults.GizmoJiggleVisuals.ResetToDefault();
         BasisSettingsDefaults.UsePerfLimitAnimators.ResetToDefault();
         BasisSettingsDefaults.MaxPerfAnimators.ResetToDefault();
         BasisSettingsDefaults.UsePerfLimitBones.ResetToDefault();

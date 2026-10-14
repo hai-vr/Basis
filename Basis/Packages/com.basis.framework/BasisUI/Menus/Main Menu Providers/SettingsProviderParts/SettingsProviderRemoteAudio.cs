@@ -78,6 +78,10 @@ namespace Basis.BasisUI
                 RebuildLayout();
             };
 
+            SettingsProvider.AddDeveloperGizmoToggle(listenerDampenGroup, "settings.developer.audioRanges", BasisSettingsDefaults.GizmoAudioRanges);
+            SettingsProvider.AddDeveloperGizmoToggle(listenerDampenGroup, "settings.developer.audioListenerCone", BasisSettingsDefaults.GizmoAudioListenerCone);
+            SettingsProvider.AddDeveloperGizmoToggle(listenerDampenGroup, "settings.developer.audioLevels", BasisSettingsDefaults.GizmoAudioLevels);
+
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(remotePlayersToggle, listenerDampenGroup, true,
                 _ => RebuildLayout());
 

@@ -664,7 +664,6 @@ namespace Basis.BasisUI
         // Every gizmo defaults off so the derived render gate stays off until the user
         // opts in to a specific gizmo. Keys bumped (_v2) so installs that persisted the
         // old default-on values don't suddenly render gizmos once the master gate is gone.
-        public static BasisSettingsBinding<bool> GizmoSkeletonLines = new("gizmoskeletonlines_v2", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> GizmoCalibrationSpheres = new("gizmocalibrationspheres_v2", new BasisPlatformDefault<bool>(false));
         public static BasisSettingsBinding<bool> GizmoJiggleVisuals = new("gizmojigglevisuals_v2", new BasisPlatformDefault<bool>(false));
         /// <summary>
@@ -2459,7 +2458,6 @@ namespace Basis.BasisUI
             //UseRealtimeReflectionProbes.LoadBindingValue();
             //RealtimeReflectionProbeRate.LoadBindingValue();
             ShowGizmos.LoadBindingValue();
-            GizmoSkeletonLines.LoadBindingValue();
             GizmoCalibrationSpheres.LoadBindingValue();
             GizmoJiggleVisuals.LoadBindingValue();
             GizmoAvatarProxy.LoadBindingValue();

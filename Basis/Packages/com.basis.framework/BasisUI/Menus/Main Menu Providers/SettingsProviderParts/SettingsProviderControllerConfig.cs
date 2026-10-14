@@ -252,6 +252,12 @@ public static class SettingsProviderControllerConfig
                 toggleFingerTouchHaptics.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.fingerTouch.haptics.tooltip"));
                 fingerTouchTuning.Add(toggleFingerTouchHaptics.Descriptor);
 
+                PanelToggle toggleFingerTouchGizmo = SettingsProvider.AddDeveloperGizmoToggle(group, "settings.developer.fingerTouch", BasisSettingsDefaults.GizmoFingerTouch);
+                if (toggleFingerTouchGizmo != null)
+                {
+                    fingerTouchTuning.Add(toggleFingerTouchGizmo.Descriptor);
+                }
+
                 toggleDisableVRFingerTouch.OnValueChanged += _ =>
                 {
                     ApplyFingerTouchTuningVisibility();
@@ -495,6 +501,7 @@ public static class SettingsProviderControllerConfig
         BasisSettingsDefaults.FingerTouchReleaseDistance.ResetToDefault();
         BasisSettingsDefaults.FingerTouchScrollSensitivity.ResetToDefault();
         BasisSettingsDefaults.FingerTouchHaptics.ResetToDefault();
+        BasisSettingsDefaults.GizmoFingerTouch.ResetToDefault();
         BasisSettingsDefaults.UIClickPressThreshold.ResetToDefault();
         BasisSettingsDefaults.UIClickReleaseThreshold.ResetToDefault();
         BasisSettingsDefaults.DepthOfFieldThreshold.ResetToDefault();

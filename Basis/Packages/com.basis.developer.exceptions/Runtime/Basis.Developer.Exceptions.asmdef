@@ -5,8 +5,7 @@
         "Basis Framework",
         "BasisNetworkCore",
         "BasisNetworkClient",
-        "BasisDebug",
-        "Unity.TextMeshPro"
+        "BasisDebug"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

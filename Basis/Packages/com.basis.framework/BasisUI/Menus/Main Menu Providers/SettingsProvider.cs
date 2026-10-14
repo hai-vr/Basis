@@ -658,6 +658,11 @@ namespace Basis.BasisUI
                 toggleExternalLinkRequests.AssignBinding(BasisSettingsDefaults.ExternalLinkRequests);
                 toggleExternalLinkRequests.Descriptor.SetTitle(BasisLocalization.Get("settings.general.externalLinkRequests"));
                 toggleExternalLinkRequests.Descriptor.SetTooltip(BasisLocalization.Get("settings.general.externalLinkRequests.tooltip"));
+
+                AddDeveloperGizmoToggle(container, "settings.developer.pointerRay", BasisSettingsDefaults.GizmoPointerRay);
+                AddDeveloperGizmoToggle(container, "settings.developer.interactionHover", BasisSettingsDefaults.GizmoInteractionHover);
+                AddDeveloperGizmoToggle(container, "settings.developer.handGrip", BasisSettingsDefaults.GizmoHandGrip);
+                AddDeveloperGizmoToggle(container, "settings.developer.jiggleGrab", BasisSettingsDefaults.GizmoJiggleGrab);
             }, false, visible =>
             {
                 if (visible && sliderMenuTeleportDistance != null)
@@ -871,6 +876,10 @@ namespace Basis.BasisUI
                     BasisMainMenu.Close();
                     OpenToTab("settings.tab.general");
                 };
+
+                AddDeveloperGizmoToggle(container, "settings.developer.gizmoLabels", BasisSettingsDefaults.GizmoLabels);
+                AddDeveloperGizmoToggle(container, "settings.developer.gizmoDrawOnTop", BasisSettingsDefaults.GizmoDrawOnTop);
+                AddDeveloperGizmoToggle(container, "settings.developer.gizmoAllCameras", BasisSettingsDefaults.GizmoRenderInAllCameras);
             }, false, _ => descriptor.ForceRebuild());
 
             // One reset button for this whole page
@@ -1040,6 +1049,12 @@ namespace Basis.BasisUI
                 RefreshDirectConnectionVisibility(toggleDirectConnections.Value);
             };
 
+            AddDeveloperGizmoToggle(container, "settings.developer.networkSync", BasisSettingsDefaults.GizmoNetworkSync);
+            AddDeveloperGizmoToggle(container, "settings.developer.networkSyncBandwidth", BasisSettingsDefaults.GizmoNetworkSyncBandwidth);
+            AddDeveloperGizmoToggle(container, "settings.developer.networkPlayers", BasisSettingsDefaults.GizmoNetworkPlayers);
+            AddDeveloperGizmoToggle(container, "settings.developer.networkPlayersBandwidth", BasisSettingsDefaults.GizmoNetworkPlayersBandwidth);
+            AddDeveloperGizmoToggle(container, "settings.developer.networkAdditionalInfo", BasisSettingsDefaults.GizmoNetworkAdditionalInfo);
+
             PanelSectionToggleHelpers.FinalizeFlatSectionFromIndex(networkingToggle, container, networkingStart, directConnected, visible =>
             {
                 if (visible)
@@ -1081,6 +1096,10 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.UIHaptics.ResetToDefault();
             BasisSettingsDefaults.HideRemoteCameraPucks.ResetToDefault();
             BasisSettingsDefaults.ExternalLinkRequests.ResetToDefault();
+            BasisSettingsDefaults.GizmoPointerRay.ResetToDefault();
+            BasisSettingsDefaults.GizmoInteractionHover.ResetToDefault();
+            BasisSettingsDefaults.GizmoHandGrip.ResetToDefault();
+            BasisSettingsDefaults.GizmoJiggleGrab.ResetToDefault();
             BasisSettingsDefaults.AllowUntrustedScriptPermissions.ResetToDefault();
             BasisSettingsDefaults.DesktopReticle.ResetToDefault();
             BasisSettingsDefaults.EnablePassthrough.ResetToDefault();
@@ -1089,10 +1108,19 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.DisableDirectConnections.ResetToDefault();
             BasisSettingsDefaults.P2PVoiceBitrateOverride.ResetToDefault();
             BasisSettingsDefaults.P2PVoiceBitrate.ResetToDefault();
+            BasisSettingsDefaults.GizmoNetworkSync.ResetToDefault();
+            BasisSettingsDefaults.GizmoNetworkSyncBandwidth.ResetToDefault();
+            BasisSettingsDefaults.GizmoNetworkPlayers.ResetToDefault();
+            BasisSettingsDefaults.GizmoNetworkPlayersBandwidth.ResetToDefault();
+            BasisSettingsDefaults.GizmoNetworkAdditionalInfo.ResetToDefault();
             BasisSettingsDefaults.RememberMenuState.ResetToDefault();
             BasisSettingsDefaults.MenuTeleport.ResetToDefault();
             BasisSettingsDefaults.MenuTeleportDistance.ResetToDefault();
             BasisSettingsDefaults.ShowDeveloperTab.ResetToDefault();
+            BasisSettingsDefaults.GizmoLabels.ResetToDefault();
+            BasisSettingsDefaults.GizmoDrawOnTop.ResetToDefault();
+            BasisSettingsDefaults.GizmoRenderInAllCameras.ResetToDefault();
+            BasisSettingsDefaults.SwapMode.ResetToDefault();
             BasisSettingsDefaults.UsePresenceSensor.ResetToDefault();
         }
 
@@ -1315,6 +1343,9 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.HearingRange.ResetToDefault();
             BasisSettingsDefaults.UseMaxAudioSources.ResetToDefault();
             BasisSettingsDefaults.MaxAudioSources.ResetToDefault();
+            BasisSettingsDefaults.GizmoAudioRanges.ResetToDefault();
+            BasisSettingsDefaults.GizmoAudioListenerCone.ResetToDefault();
+            BasisSettingsDefaults.GizmoAudioLevels.ResetToDefault();
             SettingsProviderRemoteAudio.ResetRemoteAudioToDefaults();
         }
 
@@ -2604,6 +2635,8 @@ namespace Basis.BasisUI
                 sliderRtaoRadius.Descriptor.SetTooltip(BasisLocalization.Get("settings.graphics.rtao.radius.tooltip"));
                 SettingsProviderBottleneckHints.Mark(sliderRtaoRadius, BasisFrameCostSide.Gpu);
 
+                AddDeveloperGizmoToggle(rtaoGroup.ContentParent, "settings.developer.avatarProxy", BasisSettingsDefaults.GizmoAvatarProxy);
+
 
                 // Same fold, same reason as global illumination: these were fixed values on the renderer
                 // feature, and moving one is how you find out which of them owns an artifact. The ray
@@ -3840,6 +3873,7 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.RayTracedAmbientOcclusionFadeEnd.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionSpecularRelief.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionSkinnedMeshes.ResetToDefault();
+            BasisSettingsDefaults.GizmoAvatarProxy.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionDirectStrength.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionDenoise.ResetToDefault();
             BasisSettingsDefaults.RayTracedAmbientOcclusionOtherCameras.ResetToDefault();
@@ -4276,200 +4310,6 @@ namespace Basis.BasisUI
             toggleShowFrameTimeMs.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.showFrameTimeMs.tooltip"));
             toggleShowFrameTimeMs.AssignBinding(BasisSettingsDefaults.ShowFrameTimeMs);
 
-            // ---- Gizmos & Overlays (per-gizmo toggles; rendering turns on when any are enabled) ----
-            PanelSectionToggle gizmosToggle = PanelSectionToggle.CreateNewEntry(container);
-            gizmosToggle.SetTitle(BasisLocalization.Get("settings.developer.group.gizmos"));
-            int gizmosStart = container.childCount;
-
-            PanelToggle toggleSkeletonLines = PanelToggle.CreateNewEntry(container);
-            toggleSkeletonLines.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.skeletonLines"));
-            toggleSkeletonLines.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.skeletonLines.tooltip"));
-            toggleSkeletonLines.AssignBinding(BasisSettingsDefaults.GizmoSkeletonLines);
-
-            PanelToggle toggleCalibrationSpheres = PanelToggle.CreateNewEntry(container);
-            toggleCalibrationSpheres.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.calibrationSpheres"));
-            toggleCalibrationSpheres.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.calibrationSpheres.tooltip"));
-            toggleCalibrationSpheres.AssignBinding(BasisSettingsDefaults.GizmoCalibrationSpheres);
-
-            PanelToggle toggleJiggleVisuals = PanelToggle.CreateNewEntry(container);
-            toggleJiggleVisuals.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.jiggleVisuals"));
-            toggleJiggleVisuals.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.jiggleVisuals.tooltip"));
-            toggleJiggleVisuals.AssignBinding(BasisSettingsDefaults.GizmoJiggleVisuals);
-
-            PanelToggle toggleAvatarProxy = PanelToggle.CreateNewEntry(container);
-            toggleAvatarProxy.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.avatarProxy"));
-            toggleAvatarProxy.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarProxy.tooltip"));
-            toggleAvatarProxy.AssignBinding(BasisSettingsDefaults.GizmoAvatarProxy);
-
-            PanelToggle toggleTrackerGizmos = PanelToggle.CreateNewEntry(container);
-            toggleTrackerGizmos.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.trackerGizmos"));
-            toggleTrackerGizmos.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.trackerGizmos.tooltip"));
-            toggleTrackerGizmos.AssignBinding(BasisSettingsDefaults.TrackerGizmos);
-
-            PanelToggle toggleLinkedTrackerLines = PanelToggle.CreateNewEntry(container);
-            toggleLinkedTrackerLines.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.linkedTrackerLines"));
-            toggleLinkedTrackerLines.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.linkedTrackerLines.tooltip"));
-            toggleLinkedTrackerLines.AssignBinding(BasisSettingsDefaults.LinkedTrackerLines);
-
-            PanelToggle toggleEyeGazeGizmo = PanelToggle.CreateNewEntry(container);
-            toggleEyeGazeGizmo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.eyeGazeGizmo"));
-            toggleEyeGazeGizmo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.eyeGazeGizmo.tooltip"));
-            toggleEyeGazeGizmo.AssignBinding(BasisSettingsDefaults.GizmoEyeGaze);
-
-            PanelToggle toggleIKColliders = PanelToggle.CreateNewEntry(container);
-            toggleIKColliders.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.ikColliders"));
-            toggleIKColliders.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.ikColliders.tooltip"));
-            toggleIKColliders.AssignBinding(BasisSettingsDefaults.GizmoIKColliders);
-
-            PanelToggle togglePointerRay = PanelToggle.CreateNewEntry(container);
-            togglePointerRay.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.pointerRay"));
-            togglePointerRay.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.pointerRay.tooltip"));
-            togglePointerRay.AssignBinding(BasisSettingsDefaults.GizmoPointerRay);
-
-            PanelToggle toggleHintOffsets = PanelToggle.CreateNewEntry(container);
-            toggleHintOffsets.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.hintOffsets"));
-            toggleHintOffsets.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.hintOffsets.tooltip"));
-            toggleHintOffsets.AssignBinding(BasisSettingsDefaults.GizmoHintOffsets);
-
-            PanelToggle toggleFootPlacement = PanelToggle.CreateNewEntry(container);
-            toggleFootPlacement.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.footPlacement"));
-            toggleFootPlacement.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.footPlacement.tooltip"));
-            toggleFootPlacement.AssignBinding(BasisSettingsDefaults.GizmoFootPlacement);
-
-            PanelToggle toggleInteractionHover = PanelToggle.CreateNewEntry(container);
-            toggleInteractionHover.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.interactionHover"));
-            toggleInteractionHover.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.interactionHover.tooltip"));
-            toggleInteractionHover.AssignBinding(BasisSettingsDefaults.GizmoInteractionHover);
-
-            PanelToggle toggleFingerTouchGizmo = PanelToggle.CreateNewEntry(container);
-            toggleFingerTouchGizmo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.fingerTouch"));
-            toggleFingerTouchGizmo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.fingerTouch.tooltip"));
-            toggleFingerTouchGizmo.AssignBinding(BasisSettingsDefaults.GizmoFingerTouch);
-
-            PanelToggle toggleSeatTargets = PanelToggle.CreateNewEntry(container);
-            toggleSeatTargets.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.seatTargets"));
-            toggleSeatTargets.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.seatTargets.tooltip"));
-            toggleSeatTargets.AssignBinding(BasisSettingsDefaults.GizmoSeatTargets);
-
-            PanelToggle toggleJiggleGrabGizmo = PanelToggle.CreateNewEntry(container);
-            toggleJiggleGrabGizmo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.jiggleGrab"));
-            toggleJiggleGrabGizmo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.jiggleGrab.tooltip"));
-            toggleJiggleGrabGizmo.AssignBinding(BasisSettingsDefaults.GizmoJiggleGrab);
-
-            PanelToggle toggleHandGripGizmo = PanelToggle.CreateNewEntry(container);
-            toggleHandGripGizmo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.handGrip"));
-            toggleHandGripGizmo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.handGrip.tooltip"));
-            toggleHandGripGizmo.AssignBinding(BasisSettingsDefaults.GizmoHandGrip);
-
-            PanelToggle toggleMouthEyeGizmo = PanelToggle.CreateNewEntry(container);
-            toggleMouthEyeGizmo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.mouthEye"));
-            toggleMouthEyeGizmo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.mouthEye.tooltip"));
-            toggleMouthEyeGizmo.AssignBinding(BasisSettingsDefaults.GizmoMouthEye);
-
-            PanelToggle toggleAudioRanges = PanelToggle.CreateNewEntry(container);
-            toggleAudioRanges.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioRanges"));
-            toggleAudioRanges.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioRanges.tooltip"));
-            toggleAudioRanges.AssignBinding(BasisSettingsDefaults.GizmoAudioRanges);
-
-            PanelToggle toggleAudioCone = PanelToggle.CreateNewEntry(container);
-            toggleAudioCone.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioListenerCone"));
-            toggleAudioCone.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioListenerCone.tooltip"));
-            toggleAudioCone.AssignBinding(BasisSettingsDefaults.GizmoAudioListenerCone);
-
-            PanelToggle toggleAudioLevels = PanelToggle.CreateNewEntry(container);
-            toggleAudioLevels.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioLevels"));
-            toggleAudioLevels.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioLevels.tooltip"));
-            toggleAudioLevels.AssignBinding(BasisSettingsDefaults.GizmoAudioLevels);
-
-            PanelToggle toggleNetworkSync = PanelToggle.CreateNewEntry(container);
-            toggleNetworkSync.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.networkSync"));
-            toggleNetworkSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkSync.tooltip"));
-            toggleNetworkSync.AssignBinding(BasisSettingsDefaults.GizmoNetworkSync);
-
-            PanelToggle toggleNetworkSyncBandwidth = PanelToggle.CreateNewEntry(container);
-            toggleNetworkSyncBandwidth.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.networkSyncBandwidth"));
-            toggleNetworkSyncBandwidth.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkSyncBandwidth.tooltip"));
-            toggleNetworkSyncBandwidth.AssignBinding(BasisSettingsDefaults.GizmoNetworkSyncBandwidth);
-
-            PanelToggle toggleNetworkPlayers = PanelToggle.CreateNewEntry(container);
-            toggleNetworkPlayers.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.networkPlayers"));
-            toggleNetworkPlayers.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkPlayers.tooltip"));
-            toggleNetworkPlayers.AssignBinding(BasisSettingsDefaults.GizmoNetworkPlayers);
-
-            PanelToggle toggleNetworkPlayersBandwidth = PanelToggle.CreateNewEntry(container);
-            toggleNetworkPlayersBandwidth.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.networkPlayersBandwidth"));
-            toggleNetworkPlayersBandwidth.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkPlayersBandwidth.tooltip"));
-            toggleNetworkPlayersBandwidth.AssignBinding(BasisSettingsDefaults.GizmoNetworkPlayersBandwidth);
-
-            PanelToggle toggleNetworkAdditionalInfo = PanelToggle.CreateNewEntry(container);
-            toggleNetworkAdditionalInfo.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.networkAdditionalInfo"));
-            toggleNetworkAdditionalInfo.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.networkAdditionalInfo.tooltip"));
-            toggleNetworkAdditionalInfo.AssignBinding(BasisSettingsDefaults.GizmoNetworkAdditionalInfo);
-
-            PanelToggle toggleGizmoLabels = PanelToggle.CreateNewEntry(container);
-            toggleGizmoLabels.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gizmoLabels"));
-            toggleGizmoLabels.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gizmoLabels.tooltip"));
-            toggleGizmoLabels.AssignBinding(BasisSettingsDefaults.GizmoLabels);
-
-            PanelToggle toggleGizmoDrawOnTop = PanelToggle.CreateNewEntry(container);
-            toggleGizmoDrawOnTop.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gizmoDrawOnTop"));
-            toggleGizmoDrawOnTop.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gizmoDrawOnTop.tooltip"));
-            toggleGizmoDrawOnTop.AssignBinding(BasisSettingsDefaults.GizmoDrawOnTop);
-
-            PanelToggle toggleGizmoAllCameras = PanelToggle.CreateNewEntry(container);
-            toggleGizmoAllCameras.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.gizmoAllCameras"));
-            toggleGizmoAllCameras.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.gizmoAllCameras.tooltip"));
-            toggleGizmoAllCameras.AssignBinding(BasisSettingsDefaults.GizmoRenderInAllCameras);
-
-            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(gizmosToggle, container, gizmosStart, false,
-                _ => descriptor.ForceRebuild());
-
-            // ---- Tracking & Calibration (eye/face tracking sources + calibration dev switches) ----
-            PanelSectionToggle trackingToggle = PanelSectionToggle.CreateNewEntry(container);
-            trackingToggle.SetTitle(BasisLocalization.Get("settings.developer.group.tracking"));
-            int trackingStart = container.childCount;
-
-            PanelToggle togglePreferOscEye = PanelToggle.CreateNewEntry(container);
-            togglePreferOscEye.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.eyeTracking.preferOsc"));
-            togglePreferOscEye.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.eyeTracking.preferOsc.tooltip"));
-            togglePreferOscEye.AssignBinding(BasisSettingsDefaults.EyeTrackingPreferOsc);
-
-            PanelToggle toggleAutoFoveation = PanelToggle.CreateNewEntry(container);
-            toggleAutoFoveation.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.eyeTracking.autoFoveation"));
-            toggleAutoFoveation.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.eyeTracking.autoFoveation.tooltip"));
-            toggleAutoFoveation.AssignBinding(BasisSettingsDefaults.EyeFoveationAutoManage);
-
-            PanelToggle toggleFaceTrackLipSync = PanelToggle.CreateNewEntry(container);
-            toggleFaceTrackLipSync.Descriptor.SetTitle(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers"));
-            toggleFaceTrackLipSync.Descriptor.SetTooltip(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers.tooltip"));
-            toggleFaceTrackLipSync.Descriptor.SetDescription(BasisLocalization.Get("settings.main.title.disableLipSyncForFaceTrackedPlayers.description"));
-            toggleFaceTrackLipSync.AssignBinding(BasisSettingsDefaults.DisableLipSyncForFaceTracking);
-
-            PanelToggle toggleAlwaysShowCalibration = PanelToggle.CreateNewEntry(container);
-            toggleAlwaysShowCalibration.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.alwaysShowCalibration"));
-            toggleAlwaysShowCalibration.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.alwaysShowCalibration.tooltip"));
-            toggleAlwaysShowCalibration.AssignBinding(BasisSettingsDefaults.DevAlwaysShowCalibration);
-
-            PanelToggle toggleCalibrationCsv = PanelToggle.CreateNewEntry(container);
-            toggleCalibrationCsv.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.calibrationCsv"));
-            toggleCalibrationCsv.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.calibrationCsv.tooltip"));
-            toggleCalibrationCsv.AssignBinding(BasisSettingsDefaults.DumpCalibrationCsv);
-
-            PanelToggle toggleCalibrationDebug = PanelToggle.CreateNewEntry(container);
-            toggleCalibrationDebug.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.calibrationDebug"));
-            toggleCalibrationDebug.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.calibrationDebug.tooltip"));
-            toggleCalibrationDebug.AssignBinding(BasisSettingsDefaults.DevShowCalibrationDebug);
-
-            // Auto-estimate scale before calibrating: guess standing height from the live HMD so an uncalibrated
-            // VR session is roughly the right size. Superseded the moment you calibrate. (Developer-only.)
-            // PanelToggle toggleAutoScale = PanelToggle.CreateNewEntry(container);
-            // toggleAutoScale.Descriptor.SetTitle("Auto-estimate scale (uncalibrated)");
-            // toggleAutoScale.Descriptor.SetTooltip("Before you calibrate, guess your height from the headset so the avatar isn't wildly mis-scaled. A real calibration overrides it.");
-            // toggleAutoScale.AssignBinding(BasisSettingsDefaults.AutoScaleEstimateEnabled);
-
-            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(trackingToggle, container, trackingStart, false,
-                _ => descriptor.ForceRebuild());
-
             // ---- Rendering & Shaders (VRS, shader pipeline switches, off-screen camera rates) ----
             PanelSectionToggle renderingToggle = PanelSectionToggle.CreateNewEntry(container);
             renderingToggle.SetTitle(BasisLocalization.Get("settings.developer.group.rendering"));
@@ -4726,147 +4566,6 @@ namespace Basis.BasisUI
                     _ => descriptor.ForceRebuild());
             }
 
-            // ---- Remote Player Debug (voice range readout + per-player audio and avatar overlays) ----
-            PanelSectionToggle remoteDebugToggle = PanelSectionToggle.CreateNewEntry(container);
-            remoteDebugToggle.SetTitle(BasisLocalization.Get("settings.developer.group.remoteDebug"));
-            int remoteDebugStart = container.childCount;
-
-            PanelToggle voiceRangeToggle = PanelToggle.CreateNewEntry(container);
-            voiceRangeToggle.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.voiceRange.enable"));
-            voiceRangeToggle.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.voiceRange.enable.tooltip"));
-            voiceRangeToggle.AssignBinding(BasisSettingsDefaults.ShowVoiceRange);
-
-            PanelElementDescriptor voiceRangeStatusField =
-                PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
-            voiceRangeStatusField.SetBackgroundVisible(false);
-            voiceRangeStatusField.SetTitle(BasisLocalization.Get("settings.developer.voiceRange.status.title"));
-            voiceRangeStatusField.SetDescription(BasisLocalization.Get("settings.developer.voiceRange.empty"));
-            // Isolate only this live status field (it re-batches every tick via the updater below),
-            // not the whole group — otherwise the toggle above is trapped on the nested canvas and
-            // the pointer can't select it. See the recorder note above for the hit-test detail.
-            voiceRangeStatusField.IsolateAsCanvas();
-
-            void RebuildRemoteDebugRows()
-            {
-                PanelElementDescriptor.RebuildLayoutChain(voiceRangeToggle.transform.parent as RectTransform, container);
-            }
-            void RefreshVoiceRangeVisibility(bool on)
-            {
-                voiceRangeStatusField.SetActive(on);
-                if (on) BasisVoiceRangePanelUpdater.Attach(voiceRangeStatusField);
-                else BasisVoiceRangePanelUpdater.Detach();
-            }
-            RefreshVoiceRangeVisibility(voiceRangeToggle.Value);
-            voiceRangeToggle.OnValueChanged += on =>
-            {
-                RefreshVoiceRangeVisibility(on);
-                RebuildRemoteDebugRows();
-            };
-
-            PanelToggle toggleAudioDebug = PanelToggle.CreateNewEntry(container);
-            toggleAudioDebug.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioDebug.enable"));
-            toggleAudioDebug.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.enable.tooltip"));
-            toggleAudioDebug.AssignBinding(BasisSettingsDefaults.AudioDebugEnabled);
-
-            PanelToggle toggleAudioSource = PanelToggle.CreateNewEntry(container);
-            toggleAudioSource.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.source"));
-            toggleAudioSource.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.source.tooltip"));
-            toggleAudioSource.AssignBinding(BasisSettingsDefaults.AudioDebugShowSource);
-
-            PanelToggle toggleVolumeChain = PanelToggle.CreateNewEntry(container);
-            toggleVolumeChain.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.volumeChain"));
-            toggleVolumeChain.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.volumeChain.tooltip"));
-            toggleVolumeChain.AssignBinding(BasisSettingsDefaults.AudioDebugShowVolume);
-
-            PanelToggle toggleRingBuffer = PanelToggle.CreateNewEntry(container);
-            toggleRingBuffer.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioDebug.ringBuffer"));
-            toggleRingBuffer.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.ringBuffer.tooltip"));
-            toggleRingBuffer.AssignBinding(BasisSettingsDefaults.AudioDebugShowRingBuffer);
-
-            PanelToggle toggleJitter = PanelToggle.CreateNewEntry(container);
-            toggleJitter.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.audioDebug.jitter"));
-            toggleJitter.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.jitter.tooltip"));
-            toggleJitter.AssignBinding(BasisSettingsDefaults.AudioDebugShowJitter);
-
-            PanelToggle toggleSilence = PanelToggle.CreateNewEntry(container);
-            toggleSilence.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.silence"));
-            toggleSilence.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.silence.tooltip"));
-            toggleSilence.AssignBinding(BasisSettingsDefaults.AudioDebugShowSilence);
-
-            PanelToggle toggleViseme = PanelToggle.CreateNewEntry(container);
-            toggleViseme.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.audioDebug.viseme"));
-            toggleViseme.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.audioDebug.viseme.tooltip"));
-            toggleViseme.AssignBinding(BasisSettingsDefaults.AudioDebugShowViseme);
-
-            // Hide per-section sub-toggles when the master is off — they don't drive
-            // any rendering unless the master is on, so leaving them visible just
-            // clutters the page.
-            void RefreshAudioDebugSubVisibility(bool masterOn)
-            {
-                toggleAudioSource.Descriptor.SetActive(masterOn);
-                toggleVolumeChain.Descriptor.SetActive(masterOn);
-                toggleRingBuffer.Descriptor.SetActive(masterOn);
-                toggleJitter.Descriptor.SetActive(masterOn);
-                toggleSilence.Descriptor.SetActive(masterOn);
-                toggleViseme.Descriptor.SetActive(masterOn);
-            }
-            RefreshAudioDebugSubVisibility(toggleAudioDebug.Value);
-            toggleAudioDebug.OnValueChanged += masterOn =>
-            {
-                RefreshAudioDebugSubVisibility(masterOn);
-                RebuildRemoteDebugRows();
-            };
-
-            PanelToggle toggleAvatarDataDebug = PanelToggle.CreateNewEntry(container);
-            toggleAvatarDataDebug.Descriptor.SetTitle(BasisLocalization.Get("settings.developer.avatarDataDebug.enable"));
-            toggleAvatarDataDebug.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarDataDebug.enable.tooltip"));
-            toggleAvatarDataDebug.AssignBinding(BasisSettingsDefaults.AvatarDataDebugEnabled);
-
-            PanelToggle toggleAvatarReceive = PanelToggle.CreateNewEntry(container);
-            toggleAvatarReceive.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.receive"));
-            toggleAvatarReceive.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarDataDebug.receive.tooltip"));
-            toggleAvatarReceive.AssignBinding(BasisSettingsDefaults.AvatarDataDebugShowReceive);
-
-            PanelToggle toggleAvatarStaging = PanelToggle.CreateNewEntry(container);
-            toggleAvatarStaging.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.staging"));
-            toggleAvatarStaging.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarDataDebug.staging.tooltip"));
-            toggleAvatarStaging.AssignBinding(BasisSettingsDefaults.AvatarDataDebugShowStaging);
-
-            PanelToggle toggleAvatarInterp = PanelToggle.CreateNewEntry(container);
-            toggleAvatarInterp.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.interp"));
-            toggleAvatarInterp.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarDataDebug.interp.tooltip"));
-            toggleAvatarInterp.AssignBinding(BasisSettingsDefaults.AvatarDataDebugShowInterp);
-
-            PanelToggle toggleAvatarMeta = PanelToggle.CreateNewEntry(container);
-            toggleAvatarMeta.Descriptor.SetTitle(BasisLocalization.Get("menu.individualPlayer.avatarDataDebug.meta"));
-            toggleAvatarMeta.Descriptor.SetTooltip(BasisLocalization.Get("settings.developer.avatarDataDebug.meta.tooltip"));
-            toggleAvatarMeta.AssignBinding(BasisSettingsDefaults.AvatarDataDebugShowMeta);
-
-            void RefreshAvatarDataDebugSubVisibility(bool masterOn)
-            {
-                toggleAvatarReceive.Descriptor.SetActive(masterOn);
-                toggleAvatarStaging.Descriptor.SetActive(masterOn);
-                toggleAvatarInterp.Descriptor.SetActive(masterOn);
-                toggleAvatarMeta.Descriptor.SetActive(masterOn);
-            }
-            RefreshAvatarDataDebugSubVisibility(toggleAvatarDataDebug.Value);
-            toggleAvatarDataDebug.OnValueChanged += masterOn =>
-            {
-                RefreshAvatarDataDebugSubVisibility(masterOn);
-                RebuildRemoteDebugRows();
-            };
-
-            PanelSectionToggleHelpers.FinalizeBoxedSectionFromIndex(remoteDebugToggle, container, remoteDebugStart, false, visible =>
-            {
-                if (visible)
-                {
-                    voiceRangeStatusField.SetActive(voiceRangeToggle.Value);
-                    RefreshAudioDebugSubVisibility(toggleAudioDebug.Value);
-                    RefreshAvatarDataDebugSubVisibility(toggleAvatarDataDebug.Value);
-                }
-                RebuildRemoteDebugRows();
-            });
-
             // ---- Tracking Diagnostics (face/eye tracking readouts + tracker role bindings) ----
             // The face / eye tracking section builders are owned by the comms
             // package because they reference HVR types the framework can't see;
@@ -4915,17 +4614,6 @@ namespace Basis.BasisUI
 
                     SettingsProviderNetworkTab.BuildNetworkStatsGroup(container, out _);
                 }, false, _ => descriptor.ForceRebuild());
-
-#if BASIS_HAS_OPENVR || BASIS_HAS_OPENXR
-            // ---- Platform Auto-Swap ----
-            if (!Basis.Scripts.Device_Management.BasisDeviceManagement.IsStandaloneDevice)
-            {
-                PanelSectionToggleHelpers.CreateLazyFlatSection(container,
-                    BasisLocalization.Get("settings.platform.swapMode.title"),
-                    () => SettingsProviderPlatform.BuildAutoSwapUI(container),
-                    false, _ => descriptor.ForceRebuild());
-            }
-#endif
 
             // Backup & Restore moved to the General tab — it is user data, not a developer tool.
 
@@ -4987,6 +4675,20 @@ namespace Basis.BasisUI
             return group;
         }
 
+        public static PanelToggle AddDeveloperGizmoToggle(Component parent, string key, BasisSettingsBinding<bool> binding)
+        {
+            if (!BasisSettingsDefaults.ShowDeveloperTab.RawValue)
+            {
+                return null;
+            }
+
+            PanelToggle toggle = PanelToggle.CreateNewEntry(parent);
+            toggle.Descriptor.SetTitle(BasisLocalization.Get(key));
+            toggle.Descriptor.SetTooltip(BasisLocalization.Get(key + ".tooltip"));
+            toggle.AssignBinding(binding);
+            return toggle;
+        }
+
         private static void ResetDeveloperDefaults()
         {
             BasisSettingsDefaults.DevVariableRateShadingDesktop.ResetToDefault();
@@ -4994,46 +4696,14 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.ExceptionNotifications.ResetToDefault();
             BasisSettingsDefaults.ErrorNotifications.ResetToDefault();
             BasisSettingsDefaults.ShowGizmos.ResetToDefault();
-            BasisSettingsDefaults.GizmoSkeletonLines.ResetToDefault();
-            BasisSettingsDefaults.GizmoCalibrationSpheres.ResetToDefault();
-            BasisSettingsDefaults.GizmoJiggleVisuals.ResetToDefault();
-            BasisSettingsDefaults.TrackerGizmos.ResetToDefault();
-            BasisSettingsDefaults.LinkedTrackerLines.ResetToDefault();
-            BasisSettingsDefaults.GizmoEyeGaze.ResetToDefault();
-            BasisSettingsDefaults.GizmoIKColliders.ResetToDefault();
-            BasisSettingsDefaults.GizmoPointerRay.ResetToDefault();
-            BasisSettingsDefaults.GizmoHintOffsets.ResetToDefault();
-            BasisSettingsDefaults.GizmoFootPlacement.ResetToDefault();
-            BasisSettingsDefaults.GizmoInteractionHover.ResetToDefault();
-            BasisSettingsDefaults.GizmoFingerTouch.ResetToDefault();
-            BasisSettingsDefaults.GizmoSeatTargets.ResetToDefault();
-            BasisSettingsDefaults.GizmoJiggleGrab.ResetToDefault();
-            BasisSettingsDefaults.GizmoHandGrip.ResetToDefault();
-            BasisSettingsDefaults.GizmoMouthEye.ResetToDefault();
-            BasisSettingsDefaults.GizmoAudioRanges.ResetToDefault();
-            BasisSettingsDefaults.GizmoAudioListenerCone.ResetToDefault();
-            BasisSettingsDefaults.GizmoAudioLevels.ResetToDefault();
-            BasisSettingsDefaults.GizmoNetworkSync.ResetToDefault();
-            BasisSettingsDefaults.GizmoNetworkSyncBandwidth.ResetToDefault();
-            BasisSettingsDefaults.GizmoNetworkPlayers.ResetToDefault();
-            BasisSettingsDefaults.GizmoNetworkPlayersBandwidth.ResetToDefault();
-            BasisSettingsDefaults.GizmoNetworkAdditionalInfo.ResetToDefault();
-            BasisSettingsDefaults.GizmoLabels.ResetToDefault();
-            BasisSettingsDefaults.GizmoDrawOnTop.ResetToDefault();
-            BasisSettingsDefaults.GizmoRenderInAllCameras.ResetToDefault();
             BasisSettingsDefaults.AvatarRangeIndicator.ResetToDefault();
             BasisSettingsDefaults.HearingRangeIndicator.ResetToDefault();
             BasisSettingsDefaults.MicrophoneRangeIndicator.ResetToDefault();
             BasisSettingsDefaults.EnableStatistics.ResetToDefault();
-            BasisSettingsDefaults.ShowVoiceRange.ResetToDefault();
             BasisSettingsDefaults.EnableStreamingMeta.ResetToDefault();
             BasisSettingsDefaults.StreamingMetaPort.ResetToDefault();
             BasisSettingsDefaults.DisableLogging.ResetToDefault();
             BasisSettingsDefaults.ContentPoliceLogging.ResetToDefault();
-            BasisSettingsDefaults.DumpCalibrationCsv.ResetToDefault();
-            BasisSettingsDefaults.DevShowCalibrationDebug.ResetToDefault();
-            BasisSettingsDefaults.DevAlwaysShowCalibration.ResetToDefault();
-            BasisSettingsDefaults.AutoScaleEstimateEnabled.ResetToDefault();
             BasisSettingsDefaults.EnableShaderPrewarm.ResetToDefault();
             BasisSettingsDefaults.EnableMaterialCorrection.ResetToDefault();
             BasisSettingsDefaults.EnableShaderBlocklist.ResetToDefault();
@@ -5043,17 +4713,6 @@ namespace Basis.BasisUI
             BasisSettingsDefaults.HandHeldCameraRenderHz.ResetToDefault();
             BasisSettingsDefaults.LimitAvatarPreviewRate.ResetToDefault();
             BasisSettingsDefaults.AvatarPreviewRenderHz.ResetToDefault();
-            BasisSettingsDefaults.AudioDebugEnabled.ResetToDefault();
-            BasisSettingsDefaults.DisableLipSyncForFaceTracking.ResetToDefault();
-            BasisSettingsDefaults.AudioDebugShowSource.ResetToDefault();
-            BasisSettingsDefaults.AudioDebugShowVolume.ResetToDefault();
-            BasisSettingsDefaults.AudioDebugShowRingBuffer.ResetToDefault();
-            BasisSettingsDefaults.AudioDebugShowJitter.ResetToDefault();
-            BasisSettingsDefaults.AudioDebugShowSilence.ResetToDefault();
-            BasisSettingsDefaults.AudioDebugShowViseme.ResetToDefault();
-            BasisSettingsDefaults.EyeTrackingPreferOsc.ResetToDefault();
-            BasisSettingsDefaults.EyeFoveationAutoManage.ResetToDefault();
-            BasisSettingsDefaults.SwapMode.ResetToDefault();
             BasisSettingsDefaults.SpawnAnchorHandles.ResetToDefault();
             BasisSettingsDefaults.SpawnAnchorSeatOnSurface.ResetToDefault();
             BasisSettingsDefaults.SpawnAnchorPositionSnap.ResetToDefault();

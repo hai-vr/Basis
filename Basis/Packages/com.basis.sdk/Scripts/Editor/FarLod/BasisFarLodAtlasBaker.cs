@@ -864,6 +864,10 @@ public static class BasisFarLodAtlasBaker
 
     private static byte EncodeSrgb(float linear)
     {
+        if (!(linear > 0f))
+        {
+            return 0;
+        }
         if (sSrgbEncode == null)
         {
             byte[] table = new byte[SrgbEncodeSteps + 1];
