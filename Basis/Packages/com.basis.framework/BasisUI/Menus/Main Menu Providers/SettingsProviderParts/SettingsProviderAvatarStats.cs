@@ -8,11 +8,9 @@ using UnityEngine.UI;
 namespace Basis.BasisUI
 {
     /// <summary>
-    /// Helpers for populating avatar diagnostics. The diagnostic content
-    /// (texture stats, tracker list, face/eye tracking) lives on the Developer
-    /// tab's Avatar Debug section; this class still hosts the "My Avatar" tab
-    /// itself (currently empty — kept as a placeholder so the tab name and
-    /// position are reserved) and the helpers Developer calls into.
+    /// Hosts the Avatar Customization tab and its avatar diagnostics helpers. The
+    /// System Info &amp; Statistics section (texture/VRAM) sits at the
+    /// bottom of the tab and is only built while Show Developer Tab is on.
     /// </summary>
     public static class SettingsProviderAvatarStats
     {
@@ -34,6 +32,19 @@ namespace Basis.BasisUI
                 emptyGroup.SetTitle(BasisLocalization.Get("settings.myAvatar.noCustomization"));
                 emptyGroup.SetDescription(BasisLocalization.Get("settings.myAvatar.noCustomization.description"));
                 descriptor.ForceRebuild();
+            }
+
+            // ---- System Info & Statistics (texture/VRAM), developer mode only ----
+            if (BasisSettingsDefaults.ShowDeveloperTab.RawValue)
+            {
+                PanelSectionToggle systemInfoSection = null;
+                systemInfoSection = PanelSectionToggleHelpers.CreateLazyFlatSection(content,
+                    BasisLocalization.Get("settings.developer.group.systemInfo"), () =>
+                    {
+                        PanelElementDescriptor textureGroup = SettingsProvider.CreateDiagnosticSubGroup(content,
+                            BasisLocalization.Get("settings.developer.textureStats"));
+                        PopulateStatsInto(textureGroup.ContentParent);
+                    }, false, _ => PanelSectionToggleHelpers.RebuildSectionLayout(systemInfoSection, content));
             }
 
             return tab;

@@ -179,6 +179,7 @@ namespace Cilbox
 			{ typeof(Basis.Shims.BasisPlayspaceInputShim), new HashSet<string>() },
 			{ typeof(Basis.Shims.BasisVixxyShim), new HashSet<string>() },
 			{ typeof(Basis.Shims.BasisDesktopInputShim), new HashSet<string>() },
+			{ typeof(Basis.Shims.BasisControllerInputShim), new HashSet<string>() },
 			// Jiggle grab/touch events, so a prop with jiggle can answer being handled the same way
 			// an avatar or a world object can.
 			{ typeof(Basis.Shims.BasisJiggleEventShim), new HashSet<string>{
@@ -201,6 +202,9 @@ namespace Cilbox
 				} },
 			{ typeof(Basis.Shims.BasisPlatformEventShim), new HashSet<string>{
 				nameof(Basis.Shims.BasisPlatformEventShim.Rebind),
+				} },
+			{ typeof(Basis.Shims.BasisLanguageEventShim), new HashSet<string>{
+				nameof(Basis.Shims.BasisLanguageEventShim.Rebind),
 				} },
 			{ typeof(Basis.Shims.BasisExternalLinkShim), new HashSet<string>{
 				nameof(Basis.Shims.BasisExternalLinkShim.Open),

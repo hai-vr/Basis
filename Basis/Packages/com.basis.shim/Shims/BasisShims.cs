@@ -48,6 +48,30 @@ namespace Basis
 			return (int)((CilboxProxy)self).box.usSpentLastFrame;
 		}
 
+		// Read-only identity of the content (avatar, prop or scene) the calling script belongs to.
+		// Resolved from the script's own object, so a script can only ask about its own content.
+		// Creator links (Authorship.Contact), the bundle hash, CRC and password stay withheld.
+		static BasisContentBase ContentOf(object self) => self is Component c && BasisContent.TryResolve(c, out BasisContentBase content) ? content : null;
+
+		/// <summary>Stable id shared by every build and version of this content, or "" for content built before group ids existed.</summary>
+		public static string GetContentGroupId(object self) => ContentOf(self)?.BasisBundleDescription?.ContentGroupId ?? string.Empty;
+
+		/// <summary>Network id of this spawn, or "" until the server has assigned one. Also resolves for scene scripts.</summary>
+		public static string GetContentNetworkId(object self) => ContentOf(self) is BasisContentBase content && content.TryGetNetworkGUIDIdentifier(out string id) ? id : string.Empty;
+
+		/// <summary>Creator-facing name of this content.</summary>
+		public static string GetContentName(object self) => ContentOf(self)?.BasisBundleDescription?.AssetBundleName ?? string.Empty;
+
+		/// <summary>Author credit of this content.</summary>
+		public static string GetContentAuthor(object self) => ContentOf(self)?.BasisBundleDescription?.Authorship.Author ?? string.Empty;
+
+		/// <summary>Copy of this content's creator-declared tags; empty when none were declared.</summary>
+		public static string[] GetContentTags(object self)
+		{
+			string[] tags = ContentOf(self)?.BasisBundleDescription?.Tags;
+			return tags == null ? Array.Empty<string>() : (string[])tags.Clone();
+		}
+
 		public static void AddEventTrigger(Component target, EventTriggerType eventType, UnityAction<BaseEventData> callback)
 		{
 			if (target == null || callback == null)

@@ -21,6 +21,7 @@ namespace Cilbox
 			"Basis.Shims.BasisPermissionEventShim", // Restrictive, see method whitelist.
 			"Basis.Shims.BasisGraphicsSettingsEventShim", // Restrictive, see method whitelist.
 			"Basis.Shims.BasisPlatformEventShim", // Restrictive, see method whitelist.
+			"Basis.Shims.BasisLanguageEventShim", // Restrictive, see method whitelist.
 			"Basis.Shims.BasisDebugPropsShim",
 			"Basis.Shims.BasisPlayspaceInputShim", // Restrictive, see method whitelist.
 			"Basis.Shims.BasisPlayerInputBlend",
@@ -39,6 +40,10 @@ namespace Cilbox
 			"Basis.Shims.BasisSaveShim",
 			"Basis.Shims.BasisServerStorageShim",
 			"Basis.Shims.BasisServerStorageResult",
+			"Basis.Shims.BasisHapticsShim", // Only buzzes the player wearing the avatar.
+			"Basis.Shims.BasisHapticHand",
+			"Basis.Shims.BasisSharedRandomShim",
+			"Basis.Shims.BasisAudioRoutingShim", // Only routes the avatar's own sources, to the Avatars group.
 
 			// HVR Vixxy
 			"HVR.Vixxy.HVRVixxyMenuItem", // Restrictive, see method whitelist.
@@ -83,6 +88,9 @@ namespace Cilbox
 				} },
 			{ typeof(Basis.Shims.BasisPlatformEventShim), new HashSet<string>{
 				nameof(Basis.Shims.BasisPlatformEventShim.Rebind),
+				} },
+			{ typeof(Basis.Shims.BasisLanguageEventShim), new HashSet<string>{
+				nameof(Basis.Shims.BasisLanguageEventShim.Rebind),
 				} },
 			{ typeof(UnityEngine.GameObject), new HashSet<string>{
 				typeof(GameObject).GetProperty(nameof(GameObject.transform)).GetGetMethod().Name,

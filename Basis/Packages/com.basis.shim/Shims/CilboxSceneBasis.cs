@@ -328,6 +328,9 @@ namespace Cilbox
 			{ typeof(Basis.Shims.BasisPlatformEventShim), new HashSet<string>{
 				nameof(Basis.Shims.BasisPlatformEventShim.Rebind),
 				} },
+			{ typeof(Basis.Shims.BasisLanguageEventShim), new HashSet<string>{
+				nameof(Basis.Shims.BasisLanguageEventShim.Rebind),
+				} },
 			{ typeof(Basis.Shims.BasisExternalLinkShim), new HashSet<string>{
 				nameof(Basis.Shims.BasisExternalLinkShim.Open),
 				nameof(Basis.Shims.BasisExternalLinkShim.IsValidUrl),

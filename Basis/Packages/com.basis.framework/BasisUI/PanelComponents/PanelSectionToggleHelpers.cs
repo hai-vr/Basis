@@ -192,6 +192,47 @@ namespace Basis.BasisUI
         }
 
         /// <summary>
+        /// Settles a section after it expands, collapses or changes rows: rebuilds its open box, or for
+        /// a flat section each row card under the header, innermost first, then every ancestor out to
+        /// <paramref name="stopAt"/> (pass the tab page's content). Rebuilding the tab root instead is a
+        /// no-op, and one pass on the page measures a card before the card has resized.
+        /// </summary>
+        public static void RebuildSectionLayout(PanelSectionToggle header, RectTransform stopAt)
+        {
+            if (header == null || !(header.transform.parent is RectTransform host))
+            {
+                return;
+            }
+
+            List<Transform> boxes = new List<Transform>(1);
+            header.GetContentContainers(boxes);
+            for (int i = 0; i < boxes.Count; i++)
+            {
+                if (boxes[i].gameObject.activeInHierarchy && boxes[i].TryGetComponent(out PanelElementDescriptor box))
+                {
+                    PanelElementDescriptor.RebuildLayoutChain(box.ContentParent, stopAt);
+                    return;
+                }
+            }
+
+            for (int i = header.transform.GetSiblingIndex() + 1; i < host.childCount; i++)
+            {
+                Transform row = host.GetChild(i);
+                if (row.GetComponent<PanelSectionToggle>() != null)
+                {
+                    break;
+                }
+
+                if (row.gameObject.activeInHierarchy && row.TryGetComponent(out PanelElementDescriptor rowDesc))
+                {
+                    PanelElementDescriptor.RebuildLayoutChain(rowDesc.ContentParent, rowDesc.rectTransform);
+                }
+            }
+
+            PanelElementDescriptor.RebuildLayoutChain(host, stopAt);
+        }
+
+        /// <summary>
         /// Appends a headerless group box to <paramref name="container"/>, moves every child from
         /// <paramref name="startIndex"/> onward into it, and drops the box back into their place.
         /// </summary>

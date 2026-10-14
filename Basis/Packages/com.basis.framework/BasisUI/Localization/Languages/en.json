@@ -2623,14 +2623,6 @@
       "value": "Render gizmos for every camera, so photos, streams and mirrors show them too. Off by default, gizmos sit on the layer the handheld camera culls, so only your own view shows them."
     },
     {
-      "key": "settings.general.networking.jitterBufferOverride.tooltip",
-      "value": "Manually set the network jitter buffer instead of automatic."
-    },
-    {
-      "key": "settings.general.networking.jitterBuffer.tooltip",
-      "value": "How many packets to buffer to smooth out network jitter."
-    },
-    {
       "key": "settings.developer.voiceRange.enable.tooltip",
       "value": "Show a visual indicator of your voice broadcast range."
     },
@@ -6995,10 +6987,6 @@
       "value": "Graphics Settings"
     },
     {
-      "key": "settings.developer.title",
-      "value": "Developer & Debug"
-    },
-    {
       "key": "settings.developer.showFrameTimeMs",
       "value": "Show Frame Time (ms)"
     },
@@ -7045,10 +7033,6 @@
     {
       "key": "settings.tab.downloadsurls",
       "value": "Downloads & URLs"
-    },
-    {
-      "key": "settings.tab.developer",
-      "value": "Developer"
     },
     {
       "key": "settings.tab.admin",
@@ -7353,22 +7337,6 @@
     {
       "key": "settings.general.networking.p2pAvatarRate.fpsWarning",
       "value": "Running at ~{0} FPS, below the selected {1} Hz. Avatar sync can't exceed your framerate - pick a rate near it."
-    },
-    {
-      "key": "settings.general.networking.jitterBufferOverride",
-      "value": "Override Buffer Depth"
-    },
-    {
-      "key": "settings.general.networking.jitterBufferOverride.description",
-      "value": "Manually set how many packets remote players stay behind by. Leave off for the default adaptive cushion."
-    },
-    {
-      "key": "settings.general.networking.jitterBuffer",
-      "value": "Buffer Depth (packets)"
-    },
-    {
-      "key": "settings.general.networking.jitterBuffer.description",
-      "value": "Packets to stay behind by. Higher absorbs more network jitter at the cost of latency. 2 is default; raise on flaky connections, lower on LAN."
     },
     {
       "key": "settings.general.networking.directConnections",
@@ -10103,14 +10071,6 @@
       "value": "Save the world name and the camera's position/rotation so the exact viewpoint can be reconstructed. Off by default."
     },
     {
-      "key": "settings.controls.gameplay.title",
-      "value": "Gameplay & Input"
-    },
-    {
-      "key": "settings.controls.gameplay.description",
-      "value": "General controls and comfort settings."
-    },
-    {
       "key": "settings.controls.dominantHand",
       "value": "Dominant Hand"
     },
@@ -10184,15 +10144,11 @@
     },
     {
       "key": "settings.controls.actionBindings.title",
-      "value": "Action Bindings ({0})"
+      "value": "Action Bindings"
     },
     {
       "key": "settings.controls.actionBindings.description",
       "value": "Choose an action to edit its bound roles."
-    },
-    {
-      "key": "settings.controller.selectAction.title",
-      "value": "Select Action For {0}"
     },
     {
       "key": "settings.avatarStats.deviceManagerUnavailable",
@@ -10365,6 +10321,38 @@
     {
       "key": "settings.controls.joystickBind.title",
       "value": "Slider on a Thumbstick"
+    },
+    {
+      "key": "settings.controls.general.title",
+      "value": "General"
+    },
+    {
+      "key": "settings.controls.general.description",
+      "value": "Hand preference and the basics for how you play."
+    },
+    {
+      "key": "settings.controls.turning.title",
+      "value": "Turning"
+    },
+    {
+      "key": "settings.controls.turning.description",
+      "value": "How the thumbstick turns you."
+    },
+    {
+      "key": "settings.controls.thumbsticks.title",
+      "value": "Thumbsticks"
+    },
+    {
+      "key": "settings.controls.thumbsticks.description",
+      "value": "Menu scrolling speed and stick deadzones."
+    },
+    {
+      "key": "settings.controls.keyboardBindings.title",
+      "value": "Keyboard Bindings"
+    },
+    {
+      "key": "settings.controls.keyboardBindings.description",
+      "value": "Click a key to change it, then press the new key. Press Escape to cancel."
     },
     {
       "key": "settings.controls.joystickBind.description",
@@ -12007,10 +11995,6 @@
       "value": "Rendering & Shaders"
     },
     {
-      "key": "settings.developer.group.network",
-      "value": "Network Tuning"
-    },
-    {
       "key": "settings.developer.group.logging",
       "value": "Logging & Notifications"
     },
@@ -12024,7 +12008,7 @@
     },
     {
       "key": "settings.developer.group.systemInfo",
-      "value": "System Info & Statistics"
+      "value": "Loaded Avatar Statistics"
     },
     {
       "key": "settings.developer.gizmos.description",
@@ -14587,6 +14571,10 @@
       "value": "Keep save data for you on this server"
     },
     {
+      "key": "settings.cilboxPermissions.cap.webRequests",
+      "value": "Connect to websites and send them information"
+    },
+    {
       "key": "settings.cilboxPermissions.cap.input",
       "value": "Read your keyboard, mouse and controllers"
     },
@@ -14721,6 +14709,10 @@
     {
       "key": "settings.cilboxPermissions.why.serverSaves",
       "value": "Can keep a small amount of save data tied to your account on the server you are on (16 KB by default, set by the server) and read it back when you return. Only your own data is reachable, never anyone else's. Other content that uses the same save name can also read and change that data."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.webRequests",
+      "value": "Can download from websites and send data to them, which may include your name and player ID. You are asked again about each website before it is first contacted. https only, never your local network; uploads up to 256 KB, downloads up to 4 MB."
     },
     {
       "key": "settings.cilboxPermissions.why.input",
@@ -21667,6 +21659,18 @@
     {
       "key": "externalLinks.prompt.site",
       "value": "Website"
+    },
+    {
+      "key": "webRequests.prompt.title",
+      "value": "Let this content use a website?"
+    },
+    {
+      "key": "webRequests.prompt.body",
+      "value": "\"{0}\" ({1}) wants to connect to the site below. It could download from it and send it information about you, including your name and player ID. Allow it only if you trust both. This lasts until you leave."
+    },
+    {
+      "key": "webRequests.prompt.allow",
+      "value": "Allow"
     },
     {
       "key": "externalLinks.prompt.link",

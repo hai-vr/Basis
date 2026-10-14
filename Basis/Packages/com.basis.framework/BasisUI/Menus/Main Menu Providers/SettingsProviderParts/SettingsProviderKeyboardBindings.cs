@@ -19,42 +19,46 @@ public static class SettingsProviderKeyboardBindings
 
         RectTransform container = tab.Descriptor.ContentParent;
 
-        // Movement — split WASD vs Arrow Keys
-        BuildSplitCompositeGroups(container, playerMap.FindAction("Move"),
-            BasisLocalization.Get("settings.controls.keyboard.movementWasd"), BasisLocalization.Get("settings.controls.keyboard.movementWasd.description"),
-            BasisLocalization.Get("settings.controls.keyboard.movementArrows"), BasisLocalization.Get("settings.controls.keyboard.movementArrows.description"),
-            asset);
+        // One section for every key, each kind of key under its own heading.
+        CreateCollapsibleSection(container, BasisLocalization.Get("settings.controls.keyboardBindings.title"), BasisLocalization.Get("settings.controls.keyboardBindings.description"), section =>
+        {
+            // Movement — split WASD vs Arrow Keys
+            BuildSplitCompositeGroups(section, playerMap.FindAction("Move"),
+                BasisLocalization.Get("settings.controls.keyboard.movementWasd"), BasisLocalization.Get("settings.controls.keyboard.movementWasd.description"),
+                BasisLocalization.Get("settings.controls.keyboard.movementArrows"), BasisLocalization.Get("settings.controls.keyboard.movementArrows.description"),
+                asset);
 
-        // Camera
-        BuildActionGroup(container, playerMap.FindAction("Look Delta"), "look",
-            BasisLocalization.Get("settings.controls.keyboard.camera"), BasisLocalization.Get("settings.controls.keyboard.camera.description"), asset);
+            // Vertical Movement
+            BuildActionGroup(section, playerMap.FindAction("MoveLocalUpDown"), "fly",
+                BasisLocalization.Get("settings.controls.keyboard.verticalMovement"), BasisLocalization.Get("settings.controls.keyboard.verticalMovement.description"), asset);
 
-        // Vertical Movement
-        BuildActionGroup(container, playerMap.FindAction("MoveLocalUpDown"), "fly",
-            BasisLocalization.Get("settings.controls.keyboard.verticalMovement"), BasisLocalization.Get("settings.controls.keyboard.verticalMovement.description"), asset);
+            // Actions
+            BuildSimpleGroup(section, playerMap, asset, BasisLocalization.Get("settings.controls.keyboard.actions"), BasisLocalization.Get("settings.controls.keyboard.actions.description"),
+                ("Jump", BasisLocalization.Get("settings.controls.keyboard.action.jump")),
+                ("Running", BasisLocalization.Get("settings.controls.keyboard.action.sprint")),
+                ("Crouch", BasisLocalization.Get("settings.controls.keyboard.action.crouch")),
+                ("Prone", BasisLocalization.Get("settings.controls.keyboard.action.prone")),
+                ("ToggleMicMute", BasisLocalization.Get("settings.controls.keyboard.action.microphoneInput")));
 
-        // Actions
-        BuildSimpleGroup(container, playerMap, asset, BasisLocalization.Get("settings.controls.keyboard.actions"), BasisLocalization.Get("settings.controls.keyboard.actions.description"),
-            ("Jump", BasisLocalization.Get("settings.controls.keyboard.action.jump")),
-            ("Running", BasisLocalization.Get("settings.controls.keyboard.action.sprint")),
-            ("Crouch", BasisLocalization.Get("settings.controls.keyboard.action.crouch")),
-            ("Prone", BasisLocalization.Get("settings.controls.keyboard.action.prone")),
-            ("ToggleMicMute", BasisLocalization.Get("settings.controls.keyboard.action.microphoneInput")));
+            // Camera
+            BuildActionGroup(section, playerMap.FindAction("Look Delta"), "look",
+                BasisLocalization.Get("settings.controls.keyboard.camera"), BasisLocalization.Get("settings.controls.keyboard.camera.description"), asset);
 
-        // Menu
-        BuildSimpleGroup(container, playerMap, asset, BasisLocalization.Get("settings.controls.keyboard.menu"), BasisLocalization.Get("settings.controls.keyboard.menu.description"),
-            ("Tab", BasisLocalization.Get("settings.controls.keyboard.action.freeCursor")),
-            ("OpenChat", BasisLocalization.Get("settings.controls.keyboard.action.openChat")));
+            // Menu
+            BuildSimpleGroup(section, playerMap, asset, BasisLocalization.Get("settings.controls.keyboard.menu"), BasisLocalization.Get("settings.controls.keyboard.menu.description"),
+                ("Tab", BasisLocalization.Get("settings.controls.keyboard.action.freeCursor")),
+                ("OpenChat", BasisLocalization.Get("settings.controls.keyboard.action.openChat")));
 
-        // Mode Switching
-        BuildSimpleGroup(container, playerMap, asset, BasisLocalization.Get("settings.controls.keyboard.modeSwitching"), BasisLocalization.Get("settings.controls.keyboard.modeSwitching.description"),
-            ("HotSwitchToDesktop", BasisLocalization.Get("settings.controls.keyboard.action.desktopMode")),
-            ("HotSwtichToXR", BasisLocalization.Get("settings.controls.keyboard.action.xrMode")),
-            ("HotSwtichToVR", BasisLocalization.Get("settings.controls.keyboard.action.vrMode")));
+            // Mode Switching
+            BuildSimpleGroup(section, playerMap, asset, BasisLocalization.Get("settings.controls.keyboard.modeSwitching"), BasisLocalization.Get("settings.controls.keyboard.modeSwitching.description"),
+                ("HotSwitchToDesktop", BasisLocalization.Get("settings.controls.keyboard.action.desktopMode")),
+                ("HotSwtichToXR", BasisLocalization.Get("settings.controls.keyboard.action.xrMode")),
+                ("HotSwtichToVR", BasisLocalization.Get("settings.controls.keyboard.action.vrMode")));
+        });
     }
 
     private static void BuildSplitCompositeGroups(
-        RectTransform container, InputAction action,
+        PanelElementDescriptor section, InputAction action,
         string primaryTitle, string primaryDesc,
         string altTitle, string altDesc,
         InputActionAsset asset)
@@ -88,25 +92,21 @@ public static class SettingsProviderKeyboardBindings
 
         if (primaryEntries.Count > 0)
         {
-            CreateCollapsibleSection(container, primaryTitle, primaryDesc, group =>
-            {
-                foreach (var (index, label) in primaryEntries)
-                    CreateBindingRow(group, action, index, label, asset);
-            });
+            PanelElementDescriptor group = CreateSubGroup(section, primaryTitle, primaryDesc);
+            foreach (var (index, label) in primaryEntries)
+                CreateBindingRow(group, action, index, label, asset);
         }
 
         if (altEntries.Count > 0)
         {
-            CreateCollapsibleSection(container, altTitle, altDesc, group =>
-            {
-                foreach (var (index, label) in altEntries)
-                    CreateBindingRow(group, action, index, label, asset);
-            });
+            PanelElementDescriptor group = CreateSubGroup(section, altTitle, altDesc);
+            foreach (var (index, label) in altEntries)
+                CreateBindingRow(group, action, index, label, asset);
         }
     }
 
     private static void BuildActionGroup(
-        RectTransform container, InputAction action, string actionKey,
+        PanelElementDescriptor section, InputAction action, string actionKey,
         string groupTitle, string groupDesc,
         InputActionAsset asset)
     {
@@ -147,16 +147,14 @@ public static class SettingsProviderKeyboardBindings
 
         if (entries.Count > 0)
         {
-            CreateCollapsibleSection(container, groupTitle, groupDesc, group =>
-            {
-                foreach (var (index, label) in entries)
-                    CreateBindingRow(group, action, index, label, asset);
-            });
+            PanelElementDescriptor group = CreateSubGroup(section, groupTitle, groupDesc);
+            foreach (var (index, label) in entries)
+                CreateBindingRow(group, action, index, label, asset);
         }
     }
 
     private static void BuildSimpleGroup(
-        RectTransform container, InputActionMap playerMap, InputActionAsset asset,
+        PanelElementDescriptor section, InputActionMap playerMap, InputActionAsset asset,
         string groupTitle, string groupDesc,
         params (string actionName, string label)[] actions)
     {
@@ -178,11 +176,9 @@ public static class SettingsProviderKeyboardBindings
 
         if (entries.Count > 0)
         {
-            CreateCollapsibleSection(container, groupTitle, groupDesc, group =>
-            {
-                foreach (var (action, index, label) in entries)
-                    CreateBindingRow(group, action, index, label, asset);
-            });
+            PanelElementDescriptor group = CreateSubGroup(section, groupTitle, groupDesc);
+            foreach (var (action, index, label) in entries)
+                CreateBindingRow(group, action, index, label, asset);
         }
     }
 
@@ -219,6 +215,23 @@ public static class SettingsProviderKeyboardBindings
         {
             group.ForceRebuild();
         });
+    }
+
+    /// <summary>
+    /// Titled, background-free heading inside a section, so related rows read as one block
+    /// without becoming a section of their own.
+    /// </summary>
+    public static PanelElementDescriptor CreateSubGroup(PanelElementDescriptor section, string title, string description = null)
+    {
+        PanelElementDescriptor group = PanelElementDescriptor.CreateNew(
+            PanelElementDescriptor.ElementStyles.Group, section.ContentParent);
+        group.SetBackgroundVisible(false);
+        group.SetTitle(title);
+        if (!string.IsNullOrEmpty(description))
+        {
+            group.SetDescription(description);
+        }
+        return group;
     }
 
     private static string GetPartLabel(string actionName, string partName)

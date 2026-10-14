@@ -75,6 +75,15 @@ public static class SettingsProviderStorage
 
         SettingsProviderTrustedUrls.Populate(container, TabKey, descriptor);
 
+        if (BasisSettingsDefaults.ShowDeveloperTab.RawValue)
+        {
+            PanelSectionToggle netStatsSection = null;
+            netStatsSection = PanelSectionToggleHelpers.CreateLazyBoxedSection(container,
+                BasisLocalization.Get("settings.developer.netStats"),
+                () => SettingsProviderNetworkTab.BuildNetworkStatsGroup(container, out _),
+                false, _ => PanelSectionToggleHelpers.RebuildSectionLayout(netStatsSection, container));
+        }
+
         // One reset button for this whole page (download limits, cache, trusted URLs)
         SettingsProvider.RegisterPageReset(TabKey, ResetDefaults);
 
