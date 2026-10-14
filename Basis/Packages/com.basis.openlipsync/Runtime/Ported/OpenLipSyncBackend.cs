@@ -16,6 +16,9 @@ namespace OpenLipSync.Inference
         private readonly object _lock = new object();
         private readonly ConcurrentDictionary<uint, AudioContext> _contexts = new ConcurrentDictionary<uint, AudioContext>();
         private InferenceSession _onnxSession;
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private NativeLipSyncNet _native;
+#endif
         private ModelConfig _modelConfig;
         private AudioProcessingConfig _audioConfig;
         private int _nextContextId = 1;
@@ -108,6 +111,13 @@ namespace OpenLipSync.Inference
                 }
                 _isStreaming = true;
 #else
+#if UNITY_ANDROID && !UNITY_EDITOR
+                if (TryInitializeNative(modelBytes))
+                {
+                    _initialized = true;
+                    return Result.Success;
+                }
+#endif
                 var sessionOptions = new SessionOptions();
                 sessionOptions.LogSeverityLevel = OrtLoggingLevel.ORT_LOGGING_LEVEL_WARNING;
                 sessionOptions.GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL;
@@ -152,10 +162,56 @@ namespace OpenLipSync.Inference
 
                 _onnxSession?.Dispose();
                 _onnxSession = null;
+#if UNITY_ANDROID && !UNITY_EDITOR
+                _native?.Dispose();
+                _native = null;
+#endif
 
                 _initialized = false;
             }
         }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private bool TryInitializeNative(byte[] modelBytes)
+        {
+            if (_audioConfig == null || _audioConfig.NMels != BasisNativeLipSync.Mels || _numVisemes != BasisNativeLipSync.Visemes)
+            {
+                Debug.LogWarning($"[OpenLipSync] the native kernel runs {BasisNativeLipSync.Mels} mels to {BasisNativeLipSync.Visemes} visemes, this model declares {_audioConfig?.NMels} to {_numVisemes}; using ONNX Runtime");
+                return false;
+            }
+            _native = NativeLipSyncNet.Create(modelBytes, out string error);
+            if (_native == null)
+            {
+                Debug.LogWarning($"[OpenLipSync] native kernel unavailable ({error}); using ONNX Runtime");
+                return false;
+            }
+            _isStreaming = true;
+            Debug.Log("[OpenLipSync] native kernel initialized, all speakers run as one batch per tick");
+            return true;
+        }
+
+        public bool DefersResults => _native != null;
+
+        public bool Flush()
+        {
+            NativeLipSyncNet native = _native;
+            if (native == null) return true;
+            try
+            {
+                return native.Flush();
+            }
+            catch (Exception ex)
+            {
+                LastError = $"Flush: {ex.Message}";
+                Debug.LogWarning($"[OpenLipSync] native batch error: {ex}");
+                return false;
+            }
+        }
+#else
+        public bool DefersResults => false;
+
+        public bool Flush() => true;
+#endif
 
         public Result CreateContext(ref uint context)
         {
@@ -171,6 +227,10 @@ namespace OpenLipSync.Inference
             {
 #if UNITY_WEBGL && !UNITY_EDITOR
                 var audioContext = new AudioContext(_inputSampleRate, _audioConfig, _numVisemes, new WebStreamingSession(), _isMultiLabel);
+#elif UNITY_ANDROID && !UNITY_EDITOR
+                var audioContext = _native != null
+                    ? new AudioContext(_inputSampleRate, _audioConfig, _numVisemes, new NativeStreamingSession(), _isMultiLabel)
+                    : new AudioContext(_inputSampleRate, _audioConfig, _numVisemes, _isStreaming ? new StreamingSession(_onnxSession, _audioConfig.NMels, _numVisemes) : null, _isMultiLabel);
 #else
                 // Each player needs its OWN convolution cache state. The InferenceSession is
                 // shared and thread-safe; only the caches and IoBindings are per-context.
@@ -246,6 +306,8 @@ namespace OpenLipSync.Inference
         {
 #if UNITY_WEBGL && !UNITY_EDITOR
             if (!_initialized)
+#elif UNITY_ANDROID && !UNITY_EDITOR
+            if (!_initialized || (_onnxSession == null && _native == null))
 #else
             if (!_initialized || _onnxSession == null)
 #endif
@@ -280,9 +342,8 @@ namespace OpenLipSync.Inference
                     // temporal context, so there is no window to re-run.
                     while (audioContext.TryGetNextMelFrame(out var melFeatures))
                     {
-                        audioContext.StepStreaming(melFeatures);
+                        if (audioContext.StepStreaming(melFeatures)) DebugInferenceRuns++;
                         melCount++;
-                        DebugInferenceRuns++;
                     }
                 }
                 else
@@ -312,6 +373,13 @@ namespace OpenLipSync.Inference
                     if (probs[i] > max) max = probs[i];
                 DebugLastInferenceMax = max;
 
+#if UNITY_ANDROID && !UNITY_EDITOR
+                if (_native != null && audioContext.IsNative)
+                {
+                    _native.Queue(audioContext, frame);
+                    return Result.Success;
+                }
+#endif
                 audioContext.UpdateFrame(ref frame);
 
                 return Result.Success;

@@ -406,7 +406,7 @@ namespace Basis.Scripts.BasisSdk.Players
             {
 #if !BASIS_DISABLE_MICROPHONE
                 BasisLocalMicrophoneDriver.OnHasAudio += DriveAudioToViseme;
-                BasisLocalMicrophoneDriver.OnHasSilence += DriveAudioToViseme;
+                BasisLocalMicrophoneDriver.OnHasSilence += DriveSilenceToViseme;
 #endif
                 HasCalibrationEvents = true;
             }
@@ -431,7 +431,7 @@ namespace Basis.Scripts.BasisSdk.Players
             {
 #if !BASIS_DISABLE_MICROPHONE
                 BasisLocalMicrophoneDriver.OnHasAudio -= DriveAudioToViseme;
-                BasisLocalMicrophoneDriver.OnHasSilence -= DriveAudioToViseme;
+                BasisLocalMicrophoneDriver.OnHasSilence -= DriveSilenceToViseme;
 #endif
                 HasCalibrationEvents = false;
             }
@@ -467,6 +467,14 @@ namespace Basis.Scripts.BasisSdk.Players
 #if !BASIS_DISABLE_MICROPHONE
             LocalVisemeDriver.VoiceRms = BasisVoiceLevel.LocalVoiceRms;
             LocalVisemeDriver.ProcessAudioSamples(BasisLocalMicrophoneDriver.processBufferArray,1,BasisLocalMicrophoneDriver.processBufferArray.Length);
+#endif
+        }
+
+        public void DriveSilenceToViseme()
+        {
+#if !BASIS_DISABLE_MICROPHONE
+            LocalVisemeDriver.VoiceRms = BasisVoiceLevel.LocalVoiceRms;
+            LocalVisemeDriver.ProcessSilence(BasisLocalMicrophoneDriver.processBufferArray.Length);
 #endif
         }
 

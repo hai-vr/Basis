@@ -417,6 +417,18 @@ namespace Basis.Scripts.Drivers
             }
         }
 
+        public void ProcessSilence(int Length)
+        {
+            if (FaceVisible == false || !InVisemeRange || Muted || WasSuccessful == false)
+            {
+                return;
+            }
+            if (UseOpenLipSync && openLipSyncContext != null)
+            {
+                openLipSyncContext.ProcessSilence(Length);
+            }
+        }
+
         /// <summary>
         /// External pause/resume hook for lip-sync playback.
         /// </summary>

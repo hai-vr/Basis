@@ -220,6 +220,33 @@ public static partial class BasisOpenLipSyncDriver
         }
     }
 
+    public static bool DefersResults
+    {
+        get
+        {
+            var backend = _backend;
+            return ProcessFrameOverride == null && backend != null && backend.DefersResults;
+        }
+    }
+
+    public static void EnterInference() => Interlocked.Increment(ref _inferenceInFlight);
+
+    public static void ExitInference() => Interlocked.Decrement(ref _inferenceInFlight);
+
+    public static bool Flush()
+    {
+        Interlocked.Increment(ref _inferenceInFlight);
+        try
+        {
+            var backend = _backend;
+            return _initialized && backend != null && backend.Flush();
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _inferenceInFlight);
+        }
+    }
+
     public static Result SendSignal(uint contextHandle, Signals signal, int arg1)
     {
         Interlocked.Increment(ref _inferenceInFlight);

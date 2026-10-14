@@ -186,6 +186,21 @@ static void gemm(const float* in, int in_stride, int frames, int inputs, const f
             STORE(o + (t + 2) * outputs, a20); STORE(o + (t + 2) * outputs + 4, a21);
             STORE(o + (t + 3) * outputs, a30); STORE(o + (t + 3) * outputs + 4, a31);
         }
+        for (; t + 2 <= frames; t += 2)
+        {
+            const float* x0 = in + t * in_stride;
+            const float* x1 = x0 + in_stride;
+            v4 a00 = b0, a01 = b1, a10 = b0, a11 = b1;
+            for (int i = 0; i < inputs; i++)
+            {
+                v4 w0 = LOAD(w + i * PANEL), w1 = LOAD(w + i * PANEL + 4);
+                float s0 = x0[i], s1 = x1[i];
+                a00 += s0 * w0; a01 += s0 * w1;
+                a10 += s1 * w0; a11 += s1 * w1;
+            }
+            STORE(o + t * outputs, a00); STORE(o + t * outputs + 4, a01);
+            STORE(o + (t + 1) * outputs, a10); STORE(o + (t + 1) * outputs + 4, a11);
+        }
         for (; t < frames; t++)
         {
             const float* x0 = in + t * in_stride;
