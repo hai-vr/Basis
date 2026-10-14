@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Basis.Editor.Localization;
 using UnityEditor;
 using UnityEngine;
 
@@ -37,11 +38,12 @@ public class BasisContentPoliceSelectorEditor : Editor
 
     public override void OnInspectorGUI()
     {
-        BasisEditorUI.SectionTitle("Allowed Components Used On Avatars");
+        BasisEditorUI.SectionTitle(BasisEditorLocalization.Get("editor.contentPolice.allowedComponents"));
 
         // 🔍 Search bar
         EditorGUILayout.BeginHorizontal();
-        EditorGUILayout.LabelField("Search:", GUILayout.Width(50));
+        GUIContent searchLabel = new GUIContent(BasisEditorLocalization.Get("editor.contentPolice.search"));
+        EditorGUILayout.LabelField(searchLabel, GUILayout.Width(Mathf.Max(50f, EditorStyles.label.CalcSize(searchLabel).x)));
         searchQuery = EditorGUILayout.TextField(searchQuery).ToLower();
         EditorGUILayout.EndHorizontal();
 

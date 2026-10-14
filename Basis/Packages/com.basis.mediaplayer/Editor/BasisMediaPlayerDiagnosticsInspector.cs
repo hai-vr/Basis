@@ -1,3 +1,4 @@
+using Basis.Editor.Localization;
 using System.IO;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -28,7 +29,7 @@ public class BasisMediaPlayerDiagnosticsInspector : Editor
         string package = PackagePath;
         if (string.IsNullOrEmpty(package))
         {
-            _root.Add(new HelpBox("Could not resolve the package path for the media player editor assembly.", HelpBoxMessageType.Error));
+            _root.Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.inspector.packagePathMissing"), HelpBoxMessageType.Error));
             return _root;
         }
 
@@ -38,10 +39,11 @@ public class BasisMediaPlayerDiagnosticsInspector : Editor
             Path.Combine(package, "Editor/StyleSheets/MediaPlayerSDK.uss").Replace('\\', '/'));
         if (tree == null)
         {
-            _root.Add(new HelpBox("MediaPlayerDiagnosticsSDK.uxml missing.", HelpBoxMessageType.Error));
+            _root.Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.inspector.uxmlMissing", "MediaPlayerDiagnosticsSDK.uxml"), HelpBoxMessageType.Error));
             return _root;
         }
         tree.CloneTree(_root);
+        BasisEditorLocalization.LocalizeTree(_root, "editor.mediaPlayer.uxml.diagnostics.");
         if (sheet != null) _root.styleSheets.Add(sheet);
 
         BindByName("AutoStartField", "AutoStart");
@@ -93,7 +95,7 @@ public class BasisMediaPlayerDiagnosticsInspector : Editor
 
         SetPill(_isLogging, _target.IsLogging, live);
         SetText(_rows, live ? _target.RowsWritten.ToString() : "—");
-        SetText(_resolvedPath, string.IsNullOrEmpty(_target.ResolvedLogPath) ? "(unset)" : _target.ResolvedLogPath);
+        SetText(_resolvedPath, string.IsNullOrEmpty(_target.ResolvedLogPath) ? BasisEditorLocalization.Get("editor.mediaPlayer.diagnostics.unset") : _target.ResolvedLogPath);
 
         bool failed = !string.IsNullOrEmpty(_target.LastError);
         if (_error != null)
@@ -124,7 +126,7 @@ public class BasisMediaPlayerDiagnosticsInspector : Editor
         label.RemoveFromClassList("bvp-pill-good");
         label.RemoveFromClassList("bvp-pill-bad");
         if (!live) { label.text = "—"; label.AddToClassList("bvp-pill-neutral"); return; }
-        label.text = value ? "YES" : "NO";
+        label.text = BasisEditorLocalization.Get(value ? "sdk.cilbox.state.yes" : "sdk.cilbox.state.no");
         label.AddToClassList(value ? "bvp-pill-good" : "bvp-pill-bad");
     }
 

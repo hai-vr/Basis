@@ -125,6 +125,7 @@ public static class NetworkServer
         BasisNetworkServer.Security.BasisLocomotionPolicyManager.InitializeFromConfig(configuration);
         BasisNetworkServer.Security.BasisResourceLimitManager.InitializeFromConfig(configuration);
         if (!SetupServer(configuration)) return false;
+        BasisNetworkServer.Storage.BasisServerStorage.Start(configuration);
         SubscribeEvents(Configuration);
 
         if (configuration.EnableStatistics)
@@ -156,6 +157,7 @@ public static class NetworkServer
         BasisNetworkUdpDropMonitor.Stop();
         BasisServerMemoryReclaim.Stop();
         BasisNetworkContentShare.StopExpiry();
+        BasisNetworkServer.Storage.BasisServerStorage.Stop();
         // StartServer builds a fresh AuthIdentity; without this the old one stays subscribed to
         // the static OnAuthReceived event — pinned forever, and handling every auth packet twice.
         // Left non-null so a straggling disconnect event can still resolve UUIDs while stopping.
@@ -257,6 +259,7 @@ public static class NetworkServer
         BasisNetworkServer.Security.BasisAvatarScaleLimitManager.InitializeFromConfig(Configuration);
         BasisNetworkServer.Security.BasisLocomotionPolicyManager.InitializeFromConfig(Configuration);
         BasisNetworkServer.Security.BasisResourceLimitManager.InitializeFromConfig(Configuration);
+        BasisNetworkServer.Storage.BasisServerStorage.ApplyConfiguration(Configuration);
 
         if (Server == null) return;
 

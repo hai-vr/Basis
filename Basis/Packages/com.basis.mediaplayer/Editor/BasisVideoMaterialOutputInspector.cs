@@ -1,3 +1,4 @@
+using Basis.Editor.Localization;
 using System.IO;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -26,7 +27,7 @@ public class BasisVideoMaterialOutputInspector : Editor
         string package = PackagePath;
         if (string.IsNullOrEmpty(package))
         {
-            _root.Add(new HelpBox("Could not resolve the package path for the media player editor assembly.", HelpBoxMessageType.Error));
+            _root.Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.inspector.packagePathMissing"), HelpBoxMessageType.Error));
             return _root;
         }
 
@@ -36,10 +37,11 @@ public class BasisVideoMaterialOutputInspector : Editor
             Path.Combine(package, "Editor/StyleSheets/MediaPlayerSDK.uss").Replace('\\', '/'));
         if (tree == null)
         {
-            _root.Add(new HelpBox("VideoMaterialOutputSDK.uxml missing.", HelpBoxMessageType.Error));
+            _root.Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.inspector.uxmlMissing", "VideoMaterialOutputSDK.uxml"), HelpBoxMessageType.Error));
             return _root;
         }
         tree.CloneTree(_root);
+        BasisEditorLocalization.LocalizeTree(_root, "editor.mediaPlayer.uxml.videoOutput.");
         if (sheet != null) _root.styleSheets.Add(sheet);
 
         var playerField = _root.Q<ObjectField>("PlayerField");

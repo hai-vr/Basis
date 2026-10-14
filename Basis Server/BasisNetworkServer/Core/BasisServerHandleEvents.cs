@@ -447,6 +447,7 @@ namespace BasisServerHandle
             Basis.Network.Server.Generic.BasisNetworkingGeneric.RemovePeerSceneEgress(id);
             BasisNetworkMessageProcessor.ClearPeerErrors(id);
             BasisServerMessageRegistry.ClearSubscription(id);
+            BasisNetworkServer.Storage.BasisServerStorage.RemovePeer(peer, id);
             JoinBroadcast.UnregisterPeer(id);
 
             // Value-matched, mirroring RejectWithReason(NetPeer): the guard above raced against a

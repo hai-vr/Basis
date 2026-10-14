@@ -1,4 +1,5 @@
 using Unity.Scripting.LifecycleManagement;
+using Basis.Editor.Localization;
 using Basis.Scripts.BasisSdk.Interactions;
 using GatorDragonGames.JigglePhysics;
 using UnityEditor;
@@ -72,7 +73,7 @@ public static class BasisJiggleGrabSceneDrag
     /// <summary>Appended to every JiggleRig inspector through the package's extension hook.</summary>
     private static void AppendRigInspectorGUI(Component rig, VisualElement container)
     {
-        Button openWindow = new Button(BasisJiggleGrabTesterWindow.ShowWindow) { text = "Open Jiggle Grab Tester" };
+        Button openWindow = new Button(BasisJiggleGrabTesterWindow.ShowWindow) { text = BasisEditorLocalization.Get("editor.jiggleGrab.openTester") };
         openWindow.style.marginTop = 6;
         container.Add(openWindow);
     }

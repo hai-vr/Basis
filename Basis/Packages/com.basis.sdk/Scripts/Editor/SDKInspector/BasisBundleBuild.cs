@@ -29,7 +29,7 @@ public static class BasisBundleBuild
         {
             if (CheckTarget(Targets[Index]) == false)
             {
-                return (false, "Please install build target for " + Targets[Index].ToString());
+                return (false, BasisEditorLocalization.Get("sdk.bundleBuild.installTarget", Targets[Index].ToString()));
             }
         }
 
@@ -190,7 +190,7 @@ public static class BasisBundleBuild
         {
             if (CheckTarget(Targets[Index]) == false)
             {
-                return (false, "Please install build target for " + Targets[Index].ToString());
+                return (false, BasisEditorLocalization.Get("sdk.bundleBuild.installTarget", Targets[Index].ToString()));
             }
         }
 
@@ -528,7 +528,7 @@ public static class BasisBundleBuild
             }
             if (useProvidedPassword && string.IsNullOrEmpty(OverriddenPassword))
             {
-                return (false, "Custom password is enabled but empty! Please enter a password or turn the custom password off.");
+                return (false, BasisEditorLocalization.Get("sdk.bundleBuild.passwordEmpty"));
             }
 
             AdjustBuildTargetOrder(targets);
@@ -564,7 +564,7 @@ public static class BasisBundleBuild
                 var (success, result) = await buildFunction(basisContentBase, assetBundleObject, Password, target, generatedID, Index == 0);
                 if (!success)
                 {
-                    return (false, $"Failure While Building for {target}");
+                    return (false, BasisEditorLocalization.Get("sdk.bundleBuild.failureFor", target));
                 }
 
                 if (!metaDataSet)
@@ -703,7 +703,7 @@ public static class BasisBundleBuild
             catch { /* ignore */ }
 
             EditorUtility.ClearProgressBar();
-            return (false, $"BuildBundle Exception: {ex.Message}");
+            return (false, BasisEditorLocalization.Get("sdk.bundleBuild.exception", ex.Message));
         }
     }
     /// <summary>
@@ -933,7 +933,7 @@ public static class BasisBundleBuild
 
         if (string.IsNullOrEmpty(BasisContentBase.BasisBundleDescription.AssetBundleName))
         {
-            Error = "Name was empty! Please provide a name in the field.";
+            Error = BasisEditorLocalization.Get("sdk.bundleBuild.nameEmpty");
             return false;
         }
 

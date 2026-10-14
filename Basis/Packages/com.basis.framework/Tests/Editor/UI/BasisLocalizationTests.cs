@@ -303,6 +303,69 @@ namespace Basis.Tests.UI
 
         private static string LowerFirst(string value) => char.ToLowerInvariant(value[0]) + value.Substring(1);
 
+        private const string EditorLanguagesFolder = "Packages/com.basis.sdk/Localization/Languages";
+
+        [Test]
+        public void EditorLanguageFiles_HaveEveryEnglishKey()
+        {
+            Dictionary<string, Dictionary<string, string>> tables = EditorLanguageTables();
+            Dictionary<string, string> english = tables["en"];
+            foreach (KeyValuePair<string, Dictionary<string, string>> table in tables)
+            {
+                List<string> missing = new List<string>();
+                foreach (string key in english.Keys)
+                {
+                    if (!table.Value.TryGetValue(key, out string value) || string.IsNullOrEmpty(value)) missing.Add(key);
+                }
+                Assert.That(missing, Is.Empty, $"{table.Key}.json is missing {missing.Count} editor keys, first: {string.Join(", ", missing.GetRange(0, System.Math.Min(5, missing.Count)))}");
+            }
+        }
+
+        [Test]
+        public void EditorLanguageFiles_KeepTheEnglishPlaceholders()
+        {
+            Dictionary<string, Dictionary<string, string>> tables = EditorLanguageTables();
+            Dictionary<string, string> english = tables["en"];
+            foreach (KeyValuePair<string, Dictionary<string, string>> table in tables)
+            {
+                if (table.Key == "en") continue;
+                List<string> mismatched = new List<string>();
+                foreach (KeyValuePair<string, string> entry in english)
+                {
+                    if (table.Value.TryGetValue(entry.Key, out string value) && Placeholders(entry.Value) != Placeholders(value)) mismatched.Add(entry.Key);
+                }
+                Assert.That(mismatched, Is.Empty, $"{table.Key}.json changes the {{n}} placeholders of {mismatched.Count} editor keys, first: {string.Join(", ", mismatched.GetRange(0, System.Math.Min(5, mismatched.Count)))}");
+            }
+        }
+
+        private static string Placeholders(string value)
+        {
+            List<string> found = new List<string>();
+            foreach (Match match in Regex.Matches(value, @"\{\d+(?:[,:][^{}]*)?\}")) found.Add(match.Value);
+            found.Sort(System.StringComparer.Ordinal);
+            return string.Join("|", found);
+        }
+
+        private static Dictionary<string, Dictionary<string, string>> EditorLanguageTables()
+        {
+            string[] languageFiles = AssetDatabase.FindAssets("t:TextAsset", new[] { EditorLanguagesFolder });
+            Assert.That(languageFiles, Is.Not.Empty);
+            Dictionary<string, Dictionary<string, string>> tables = new Dictionary<string, Dictionary<string, string>>();
+            foreach (string guid in languageFiles)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                BasisLanguageTable table = JsonUtility.FromJson<BasisLanguageTable>(AssetDatabase.LoadAssetAtPath<TextAsset>(path).text);
+                Dictionary<string, string> entries = new Dictionary<string, string>();
+                foreach (BasisLanguageEntry entry in table.entries)
+                {
+                    if (!string.IsNullOrEmpty(entry.key)) entries[entry.key] = entry.value;
+                }
+                tables[table.code] = entries;
+            }
+            Assert.That(tables, Does.ContainKey("en"));
+            return tables;
+        }
+
         [Test]
         public void CachedEmbeddedItemAndItsPinnedButton_FollowALanguageSwitch()
         {

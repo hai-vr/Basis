@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Basis.Editor.Localization;
 using Basis.Scripts.BasisSdk.Interactions;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -13,14 +14,14 @@ public class BasisSeatSyncInspector : BasisDocInspector_UI
         var root = new VisualElement();
 
         root.Add(BasisSyncInspectorUI.Header(
-            "Basis Seat Sync",
-            "Reliable seat-occupancy sync. Sitting broadcasts the occupant and drives that remote player into the seat; only the occupant can stand. Discrete + reliable — separate from the interpolated value-sync system."));
+            BasisEditorLocalization.Get("editor.sync.seat.title"),
+            BasisEditorLocalization.Get("editor.sync.seat.description")));
 
         root.Add(BasisSyncInspectorUI.ValidationContainer(ValidateSeat));
 
-        VisualElement seat = BasisSyncInspectorUI.Card("Seat");
-        seat.Add(BasisSyncInspectorUI.Described(new PropertyField(serializedObject.FindProperty("Seat")),
-            "The BasisSeat whose occupancy is synced. Auto-found on this GameObject if left empty."));
+        VisualElement seat = BasisSyncInspectorUI.Card(BasisEditorLocalization.Get("editor.sync.seat.card"));
+        seat.Add(BasisSyncInspectorUI.Described(new PropertyField(serializedObject.FindProperty("Seat"), BasisEditorLocalization.Get("editor.sync.seat.seatField")),
+            BasisEditorLocalization.Get("editor.sync.seat.seatField.tooltip")));
         root.Add(seat);
 
         root.Bind(serializedObject);
@@ -38,7 +39,7 @@ public class BasisSeatSyncInspector : BasisDocInspector_UI
         var s = target as BasisSeatSync;
         if (s == null) return issues;
         if (s.Seat == null && s.GetComponent<BasisSeat>() == null)
-            issues.Add(BasisSyncIssue.Error("No BasisSeat assigned or found on this GameObject."));
+            issues.Add(BasisSyncIssue.Error(BasisEditorLocalization.Get("editor.sync.seat.noSeat")));
         return issues;
     }
 }

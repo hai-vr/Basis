@@ -50,7 +50,8 @@ internal static class BasisProjectSettingsUI
                 string usage = EditorGUILayout.TextField(
                     new GUIContent(
                         Tr("projectSetup.networking.usageDescription", "iOS prompt text"),
-                        "NSLocalNetworkUsageDescription — iOS 14+ shows this the first time the app reaches the local network."),
+                        Tr("projectSetup.networking.usageDescription.tooltip",
+                            "NSLocalNetworkUsageDescription — iOS 14+ shows this the first time the app reaches the local network.")),
                     settings.LocalNetworkUsageDescription);
                 if (EditorGUI.EndChangeCheck()) settings.SetLocalNetworkUsageDescription(usage);
             }
@@ -137,7 +138,7 @@ internal static class BasisProjectSettingsUI
     {
         return new SettingsProvider("Project/Basis/Networking", SettingsScope.Project)
         {
-            label = "Networking",
+            label = Tr("editor.projectSettings.networking.label", "Networking"),
             guiHandler = _ =>
             {
                 EditorGUILayout.Space();
@@ -156,7 +157,7 @@ internal static class BasisProjectSettingsUI
     {
         return new SettingsProvider("Project/Basis/Project Wizard", SettingsScope.Project)
         {
-            label = "Project Wizard",
+            label = Tr("editor.projectSettings.projectWizard.label", "Project Wizard"),
             guiHandler = _ =>
             {
                 EditorGUILayout.Space();

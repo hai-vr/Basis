@@ -2,8 +2,10 @@ using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UIElements;
 using Basis.Localization;
 
 namespace Basis.Editor.Localization
@@ -32,6 +34,7 @@ namespace Basis.Editor.Localization
         private static readonly Dictionary<string, Dictionary<string, string>> _allTables = new(StringComparer.OrdinalIgnoreCase);
         private static readonly List<LanguageOption> _available = new();
         private static readonly HashSet<string> _missingKeys = new();
+        private static readonly Dictionary<(Type, string), PropertyInfo> _stringProperties = new();
 
         private static bool _initialized;
         private static string _currentLanguage = DefaultLanguage;
@@ -168,6 +171,93 @@ namespace Basis.Editor.Localization
         {
             string template = Get(key);
             return BasisLocalizationCore.Format(template, args);
+        }
+
+        public static bool TryGet(string key, out string value)
+        {
+            value = null;
+            if (string.IsNullOrEmpty(key))
+            {
+                return false;
+            }
+
+            if (!_initialized)
+            {
+                Initialize();
+            }
+
+            if (_current.TryGetValue(key, out value) && !string.IsNullOrEmpty(value))
+            {
+                return true;
+            }
+
+            if (_fallback.TryGetValue(key, out value) && !string.IsNullOrEmpty(value))
+            {
+                return true;
+            }
+
+            value = null;
+            return false;
+        }
+
+        public static void LocalizeTree(VisualElement root, string keyPrefix)
+        {
+            if (root == null || string.IsNullOrEmpty(keyPrefix))
+            {
+                return;
+            }
+
+            LocalizeElement(root, keyPrefix);
+            root.Query<VisualElement>().ForEach(element => LocalizeElement(element, keyPrefix));
+        }
+
+        private static void LocalizeElement(VisualElement element, string keyPrefix)
+        {
+            string name = element.name;
+            if (string.IsNullOrEmpty(name))
+            {
+                return;
+            }
+
+            string baseKey = keyPrefix + char.ToLowerInvariant(name[0]) + name.Substring(1);
+            if (TryGet(baseKey + ".text", out string text))
+            {
+                SetStringProperty(element, "text", text);
+            }
+
+            if (TryGet(baseKey + ".label", out string label))
+            {
+                SetStringProperty(element, "label", label);
+            }
+
+            if (TryGet(baseKey + ".tooltip", out string tooltip))
+            {
+                element.tooltip = tooltip;
+            }
+
+            if (element is TextField textField && TryGet(baseKey + ".placeholder", out string placeholder))
+            {
+                textField.textEdition.placeholder = placeholder;
+            }
+        }
+
+        private static void SetStringProperty(VisualElement element, string propertyName, string value)
+        {
+            (Type, string) cacheKey = (element.GetType(), propertyName);
+            if (!_stringProperties.TryGetValue(cacheKey, out PropertyInfo property))
+            {
+                foreach (PropertyInfo candidate in cacheKey.Item1.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    if (candidate.Name == propertyName && candidate.PropertyType == typeof(string) && candidate.CanWrite)
+                    {
+                        property = candidate;
+                        break;
+                    }
+                }
+                _stringProperties[cacheKey] = property;
+            }
+
+            property?.SetValue(element, value);
         }
 
         private static void LoadAllTables()

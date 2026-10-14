@@ -8,7 +8,7 @@
         <engine:VisualElement name="TargetCard" class="bvp-card">
             <editor:ObjectField label="Player" name="TargetPlayer" type="BasisMediaPlayer, BasisMediaPlayer" allow-scene-objects="true"/>
             <engine:Label text="Enter Play Mode for live counters." name="EditModeHint" class="bvp-help-info"/>
-            <engine:Label text="Diagnostics CSV" class="bvp-section-title" style="margin-top: 6px;"/>
+            <engine:Label text="Diagnostics CSV" name="DiagnosticsTitle" class="bvp-section-title" style="margin-top: 6px;"/>
             <engine:VisualElement name="DiagnosticsRow" class="bvp-actions-card">
                 <engine:Button text="Attach Logger" name="DiagAttachButton" class="bvp-secondary-button"/>
                 <engine:Button text="Start" name="DiagStartButton" class="bvp-primary-button"/>
@@ -18,7 +18,7 @@
             </engine:VisualElement>
             <engine:Label text="Path: (none)" name="DiagPathLabel" class="bvp-counters"/>
             <engine:Label text="Rows: 0" name="DiagRowsLabel" class="bvp-mini-note"/>
-            <engine:Label text="This is the per-frame capture. The engine writes its own, separately, from the player's Diagnostics Csv Path." class="bvp-mini-note"/>
+            <engine:Label text="This is the per-frame capture. The engine writes its own, separately, from the player's Diagnostics Csv Path." name="DiagnosticsNote" class="bvp-mini-note"/>
         </engine:VisualElement>
 
         <engine:ScrollView name="MainScroll" class="bvp-scroll">
@@ -26,32 +26,32 @@
 
             <engine:Foldout text="1. Player" name="PlayerFoldout" value="true" class="bvp-foldout">
                 <engine:VisualElement name="PlayerSection" class="bvp-status-grid">
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="State" class="bvp-status-label"/><engine:Label text="—" name="P_State" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Position" class="bvp-status-label"/><engine:Label text="—" name="P_Position" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Error" class="bvp-status-label"/><engine:Label text="—" name="P_Error" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Load Generation" class="bvp-status-label"/><engine:Label text="—" name="P_LoadGen" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="State" name="PlayerStateLabel" class="bvp-status-label"/><engine:Label text="—" name="P_State" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Position" name="PlayerPositionLabel" class="bvp-status-label"/><engine:Label text="—" name="P_Position" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Error" name="PlayerErrorLabel" class="bvp-status-label"/><engine:Label text="—" name="P_Error" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Load Generation" name="PlayerLoadGenLabel" class="bvp-status-label"/><engine:Label text="—" name="P_LoadGen" class="bvp-status-value"/></engine:VisualElement>
                 </engine:VisualElement>
             </engine:Foldout>
 
             <engine:Foldout text="2. Source / Transport" name="SourceFoldout" value="true" class="bvp-foldout">
                 <engine:VisualElement name="SourceSection" class="bvp-status-grid">
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="URL" class="bvp-status-label"/><engine:Label text="—" name="S_Url" class="bvp-status-value bvp-status-value-wrap"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Audio URL" class="bvp-status-label"/><engine:Label text="—" name="S_AudioUrl" class="bvp-status-value bvp-status-value-wrap"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Liveness" class="bvp-status-label"/><engine:Label text="—" name="S_Liveness" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Resolved By" class="bvp-status-label"/><engine:Label text="—" name="S_Provider" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Title" class="bvp-status-label"/><engine:Label text="—" name="S_Title" class="bvp-status-value bvp-status-value-wrap"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="URL" name="SourceUrlLabel" class="bvp-status-label"/><engine:Label text="—" name="S_Url" class="bvp-status-value bvp-status-value-wrap"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Audio URL" name="SourceAudioUrlLabel" class="bvp-status-label"/><engine:Label text="—" name="S_AudioUrl" class="bvp-status-value bvp-status-value-wrap"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Liveness" name="SourceLivenessLabel" class="bvp-status-label"/><engine:Label text="—" name="S_Liveness" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Resolved By" name="SourceProviderLabel" class="bvp-status-label"/><engine:Label text="—" name="S_Provider" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Title" name="SourceTitleLabel" class="bvp-status-label"/><engine:Label text="—" name="S_Title" class="bvp-status-value bvp-status-value-wrap"/></engine:VisualElement>
                 </engine:VisualElement>
                 <engine:Label text="A split source shows both legs. Audio URL empty means one muxed stream." name="S_Help" class="bvp-mini-note"/>
             </engine:Foldout>
 
             <engine:Foldout text="3. Decode" name="VideoDecodeFoldout" value="true" class="bvp-foldout">
                 <engine:VisualElement name="VideoDecodeSection" class="bvp-status-grid">
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Decoded" class="bvp-status-label"/><engine:Label text="—" name="VD_Decoded" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Decode Rate" class="bvp-status-label"/><engine:Label text="—" name="VD_FpsDecoded" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Video Size" class="bvp-status-label"/><engine:Label text="—" name="VD_VideoSize" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Output Texture" class="bvp-status-label"/><engine:Label text="—" name="VD_OutputTex" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Frame Origin" class="bvp-status-label"/><engine:Label text="—" name="VD_Origin" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Decode Preference" class="bvp-status-label"/><engine:Label text="—" name="VD_Preference" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Decoded" name="DecodeDecodedLabel" class="bvp-status-label"/><engine:Label text="—" name="VD_Decoded" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Decode Rate" name="DecodeRateLabel" class="bvp-status-label"/><engine:Label text="—" name="VD_FpsDecoded" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Video Size" name="DecodeVideoSizeLabel" class="bvp-status-label"/><engine:Label text="—" name="VD_VideoSize" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Output Texture" name="DecodeOutputTexLabel" class="bvp-status-label"/><engine:Label text="—" name="VD_OutputTex" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Frame Origin" name="DecodeOriginLabel" class="bvp-status-label"/><engine:Label text="—" name="VD_Origin" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Decode Preference" name="DecodePreferenceLabel" class="bvp-status-label"/><engine:Label text="—" name="VD_Preference" class="bvp-status-value"/></engine:VisualElement>
                 </engine:VisualElement>
             </engine:Foldout>
 
@@ -62,57 +62,57 @@
                         <engine:VisualElement class="bvp-bar-track"><engine:VisualElement name="VQ_BufferFill" class="bvp-bar-fill"/></engine:VisualElement>
                         <engine:Label text="—" name="VQ_BufferValue" class="bvp-bar-value"/>
                     </engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Buffer Depth" class="bvp-status-label"/><engine:Label text="—" name="VQ_Depth" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Presented" class="bvp-status-label"/><engine:Label text="—" name="VQ_Presented" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Present Rate" class="bvp-status-label"/><engine:Label text="—" name="VQ_FpsDisplayed" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Editor Frame Rate" class="bvp-status-label"/><engine:Label text="—" name="VQ_FpsRender" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Decoded − Presented" class="bvp-status-label"/><engine:Label text="—" name="VQ_InFlight" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Buffer Depth" name="QueueDepthLabel" class="bvp-status-label"/><engine:Label text="—" name="VQ_Depth" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Presented" name="QueuePresentedLabel" class="bvp-status-label"/><engine:Label text="—" name="VQ_Presented" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Present Rate" name="QueuePresentRateLabel" class="bvp-status-label"/><engine:Label text="—" name="VQ_FpsDisplayed" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Editor Frame Rate" name="QueueRenderRateLabel" class="bvp-status-label"/><engine:Label text="—" name="VQ_FpsRender" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Decoded − Presented" name="QueueInFlightLabel" class="bvp-status-label"/><engine:Label text="—" name="VQ_InFlight" class="bvp-status-value"/></engine:VisualElement>
                 </engine:VisualElement>
                 <engine:Label text="Present rate below decode rate for any length of time means frames are being dropped downstream." name="VQ_Help" class="bvp-mini-note"/>
             </engine:Foldout>
 
             <engine:Foldout text="5. Clock &amp; Sync" name="ClockFoldout" value="true" class="bvp-foldout">
                 <engine:VisualElement class="bvp-status-grid">
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Position" class="bvp-status-label"/><engine:Label text="—" name="C_Position" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Duration" class="bvp-status-label"/><engine:Label text="—" name="C_Duration" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Sync Rate" class="bvp-status-label"/><engine:Label text="—" name="C_SyncPpm" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Max Divergence" class="bvp-status-label"/><engine:Label text="—" name="C_MaxDivergence" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Position" name="ClockPositionLabel" class="bvp-status-label"/><engine:Label text="—" name="C_Position" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Duration" name="ClockDurationLabel" class="bvp-status-label"/><engine:Label text="—" name="C_Duration" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Sync Rate" name="ClockSyncRateLabel" class="bvp-status-label"/><engine:Label text="—" name="C_SyncPpm" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Max Divergence" name="ClockMaxDivergenceLabel" class="bvp-status-label"/><engine:Label text="—" name="C_MaxDivergence" class="bvp-status-value"/></engine:VisualElement>
                 </engine:VisualElement>
-                <engine:Label text="Sync rate is the ladder's wanted offset from 1x while chasing a shared position. Non-zero for long stretches means the correction is not converging." class="bvp-mini-note"/>
+                <engine:Label text="Sync rate is the ladder's wanted offset from 1x while chasing a shared position. Non-zero for long stretches means the correction is not converging." name="ClockHelp" class="bvp-mini-note"/>
             </engine:Foldout>
 
             <engine:Foldout text="6. Audio" name="AudioDecodeFoldout" value="true" class="bvp-foldout">
                 <engine:VisualElement class="bvp-status-grid">
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Stream Format" class="bvp-status-label"/><engine:Label text="—" name="AD_Format" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Frames Pulled" class="bvp-status-label"/><engine:Label text="—" name="AO_Consumed" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Pull Rate" class="bvp-status-label"/><engine:Label text="—" name="AO_PullRate" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Device DSP" class="bvp-status-label"/><engine:Label text="—" name="AO_Dsp" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Listener Paused" class="bvp-status-label"/><engine:Label text="—" name="AO_ListenerPaused" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Outputs" class="bvp-status-label"/><engine:Label text="—" name="AO_Outputs" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Output Level" class="bvp-status-label"/><engine:Label text="—" name="AO_Level" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Output Latency" class="bvp-status-label"/><engine:Label text="—" name="AO_Latency" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Stream Format" name="AudioFormatLabel" class="bvp-status-label"/><engine:Label text="—" name="AD_Format" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Frames Pulled" name="AudioConsumedLabel" class="bvp-status-label"/><engine:Label text="—" name="AO_Consumed" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Pull Rate" name="AudioPullRateLabel" class="bvp-status-label"/><engine:Label text="—" name="AO_PullRate" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Device DSP" name="AudioDspLabel" class="bvp-status-label"/><engine:Label text="—" name="AO_Dsp" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Listener Paused" name="AudioListenerPausedLabel" class="bvp-status-label"/><engine:Label text="—" name="AO_ListenerPaused" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Outputs" name="AudioOutputsLabel" class="bvp-status-label"/><engine:Label text="—" name="AO_Outputs" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Output Level" name="AudioLevelLabel" class="bvp-status-label"/><engine:Label text="—" name="AO_Level" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Output Latency" name="AudioLatencyLabel" class="bvp-status-label"/><engine:Label text="—" name="AO_Latency" class="bvp-status-value"/></engine:VisualElement>
                 </engine:VisualElement>
                 <engine:Label text="Pull rate should sit at the stream rate whatever the device runs at — the outputs resample. A pull rate stuck below it drags the clock, because audio is what masters it. Outputs are the per-speaker AudioSources; none bound means the player is decoding audio nothing plays." name="AO_Help" class="bvp-mini-note"/>
             </engine:Foldout>
 
             <engine:Foldout text="7. Captions &amp; Subtitles" name="CaptionsFoldout" value="false" class="bvp-foldout">
                 <engine:VisualElement class="bvp-status-grid">
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Captions Enabled" class="bvp-status-label"/><engine:Label text="—" name="CS_Enabled" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Sidecar Track" class="bvp-status-label"/><engine:Label text="—" name="CS_Track" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Tracks Offered" class="bvp-status-label"/><engine:Label text="—" name="CS_TrackCount" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Captions Enabled" name="CaptionsEnabledLabel" class="bvp-status-label"/><engine:Label text="—" name="CS_Enabled" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Sidecar Track" name="CaptionsTrackLabel" class="bvp-status-label"/><engine:Label text="—" name="CS_Track" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Tracks Offered" name="CaptionsTrackCountLabel" class="bvp-status-label"/><engine:Label text="—" name="CS_TrackCount" class="bvp-status-value"/></engine:VisualElement>
                 </engine:VisualElement>
                 <engine:Label text="—" name="CS_Current" class="bvp-counters"/>
             </engine:Foldout>
 
             <engine:Foldout text="8. Engine" name="EngineFoldout" value="false" class="bvp-foldout">
                 <engine:VisualElement class="bvp-status-grid">
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Platform" class="bvp-status-label"/><engine:Label text="—" name="E_Platform" class="bvp-status-value"/></engine:VisualElement>
-                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Capability Version" class="bvp-status-label"/><engine:Label text="—" name="E_Version" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Platform" name="EnginePlatformLabel" class="bvp-status-label"/><engine:Label text="—" name="E_Platform" class="bvp-status-value"/></engine:VisualElement>
+                    <engine:VisualElement class="bvp-status-row"><engine:Label text="Capability Version" name="EngineVersionLabel" class="bvp-status-label"/><engine:Label text="—" name="E_Version" class="bvp-status-value"/></engine:VisualElement>
                 </engine:VisualElement>
                 <engine:Label text="—" name="E_Video" class="bvp-counters"/>
                 <engine:Label text="—" name="E_Audio" class="bvp-counters"/>
                 <engine:Label text="—" name="E_Transports" class="bvp-counters"/>
-                <engine:Label text="What this build of the engine will actually decode on this machine. Queried once and cached; a decode fallback advises a re-query." class="bvp-mini-note"/>
+                <engine:Label text="What this build of the engine will actually decode on this machine. Queried once and cached; a decode fallback advises a re-query." name="EngineHelp" class="bvp-mini-note"/>
             </engine:Foldout>
         </engine:ScrollView>
     </engine:VisualElement>

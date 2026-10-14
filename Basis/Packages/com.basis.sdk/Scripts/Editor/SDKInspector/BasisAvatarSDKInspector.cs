@@ -121,6 +121,7 @@ public partial class BasisAvatarSDKInspector : Editor
         if (visualTree != null)
         {
             uiElementsRoot = visualTree.CloneTree();
+            BasisEditorLocalization.LocalizeTree(uiElementsRoot, "sdk.uxml.avatar.");
             rootElement.Add(uiElementsRoot);
             BasisAvatarValidator = new BasisAvatarValidator(Avatar, rootElement);
             Button button = BasisSDKCommonInspector.DocumentationButton(rootElement, BasisEditorLocalization.Get("sdk.avatar.documentation.button"));

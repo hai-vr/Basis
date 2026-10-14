@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using Basis.Editor.Localization;
 using UnityEditor;
 using UnityEditor.AddressableAssets;
 using UnityEditor.AddressableAssets.Build;
@@ -20,7 +21,7 @@ public static class BasisWebBuild
     [MenuItem("Basis/Build/Web Player")]
     private static void BuildFromMenu()
     {
-        string folder = EditorUtility.SaveFolderPanel("Web player output folder", Directory.GetCurrentDirectory(), "WebBuild");
+        string folder = EditorUtility.SaveFolderPanel(BasisEditorLocalization.Get("editor.webBuild.outputFolderTitle"), Directory.GetCurrentDirectory(), "WebBuild");
         if (string.IsNullOrEmpty(folder)) return;
         Build(folder);
     }
@@ -29,7 +30,7 @@ public static class BasisWebBuild
     private static void CheckFromMenu()
     {
         int compiled = CompileScripts();
-        EditorUtility.DisplayDialog("Web player scripts", compiled > 0 ? $"{compiled} assemblies compiled for the web player." : "The web player scripts failed to compile. The errors are in the console.", "OK");
+        EditorUtility.DisplayDialog(BasisEditorLocalization.Get("editor.webBuild.scriptsTitle"), compiled > 0 ? BasisEditorLocalization.Get("editor.webBuild.scriptsCompiled", compiled) : BasisEditorLocalization.Get("editor.webBuild.scriptsFailed"), BasisEditorLocalization.Get("editor.common.ok"));
     }
 
     public static void BuildWeb()

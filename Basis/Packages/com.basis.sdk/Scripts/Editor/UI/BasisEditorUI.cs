@@ -1,6 +1,7 @@
 using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
+using Basis.Editor.Localization;
 using UnityEditor;
 using UnityEngine;
 
@@ -409,7 +410,7 @@ public static class BasisEditorUI
     {
         Init();
         EditorGUILayout.BeginHorizontal();
-        Pill(pass ? "PASS" : "FAIL", pass ? State.Good : State.Bad);
+        Pill(BasisEditorLocalization.Get(pass ? "sdk.editorUi.pass" : "sdk.editorUi.fail"), pass ? State.Good : State.Bad);
         GUILayout.Space(6f);
         if (_reasonPass == null)
         {

@@ -1,3 +1,4 @@
+using Basis.Editor.Localization;
 using System;
 using System.Collections.Generic;
 using UnityEditor;
@@ -89,10 +90,6 @@ internal static class BasisMediaPlayerTapOrdering
         return null;
     }
 
-    public const string ReorderRefused =
-        "Unity wouldn't reorder these components: neither the tap nor the filters would move. " +
-        "Open the prefab and put the tap above the filters there, or unpack the instance.";
-
     // The warning and its fix button, shared by the audio and tap inspectors so
     // a change to either lands on both. `resolve` is called fresh on every poll
     // and on every click: the offending sources are never held between the two,
@@ -149,8 +146,8 @@ internal static class BasisMediaPlayerTapOrdering
 
             Clear();
             Add(new HelpBox(message, HelpBoxMessageType.Warning));
-            Add(new Button(Apply) { text = "Fix audio filter order" });
-            if (blocked) Add(new HelpBox(ReorderRefused, HelpBoxMessageType.Info));
+            Add(new Button(Apply) { text = BasisEditorLocalization.Get("editor.mediaPlayer.tapOrdering.fix") });
+            if (blocked) Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.tapOrdering.reorderRefused"), HelpBoxMessageType.Info));
         }
 
         private void Apply()

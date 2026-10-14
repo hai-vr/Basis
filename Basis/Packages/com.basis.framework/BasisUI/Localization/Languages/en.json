@@ -14579,6 +14579,14 @@
       "value": "Read and change saved data, including your sign-in key"
     },
     {
+      "key": "settings.cilboxPermissions.cap.saves",
+      "value": "Keep its own save data on this device"
+    },
+    {
+      "key": "settings.cilboxPermissions.cap.serverSaves",
+      "value": "Keep save data for you on this server"
+    },
+    {
       "key": "settings.cilboxPermissions.cap.input",
       "value": "Read your keyboard, mouse and controllers"
     },
@@ -14705,6 +14713,14 @@
     {
       "key": "settings.cilboxPermissions.why.storage",
       "value": "Can read and change data that Basis and other content save on this computer. That includes the key that proves who you are to servers, so this content could sign in as you somewhere else."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.saves",
+      "value": "Can keep up to 1 MB of its own save data on this device and read it back on later visits. It cannot reach any other files. Other content that uses the same save name can also read and change that data."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.serverSaves",
+      "value": "Can keep a small amount of save data tied to your account on the server you are on (16 KB by default, set by the server) and read it back when you return. Only your own data is reachable, never anyone else's. Other content that uses the same save name can also read and change that data."
     },
     {
       "key": "settings.cilboxPermissions.why.input",

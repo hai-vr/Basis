@@ -1,4 +1,5 @@
 using Unity.Scripting.LifecycleManagement;
+using Basis.Editor.Localization;
 using LinkerGenerator;
 using System;
 using System.Collections.Generic;
@@ -99,8 +100,8 @@ public class BasisBuildDialogAndSettings : IPreprocessBuildWithReport
         else
         {
             int choice = EditorUtility.DisplayDialogComplex(
-                "Scripting Backend",
-                $"Build target: {target}\n\nWhich scripting backend should this build use?\n\nYour choice is remembered for next time. Change it under Basis ▸ Project Setup ▸ Build & Modules.",
+                BasisEditorLocalization.Get("editor.buildDialog.title"),
+                BasisEditorLocalization.Get("editor.buildDialog.message", target),
                 "IL2CPP",
                 "Mono",
                 "CoreCLR"

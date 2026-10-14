@@ -339,7 +339,7 @@ public static class BasisSDKCommonInspector
         for (int i = 0; i < ContentTagPresets.Length; i++)
         {
             string preset = ContentTagPresets[i];
-            Toggle toggle = new Toggle(preset)
+            Toggle toggle = new Toggle(PresetLabel(preset))
             {
                 value = ContainsTag(content.BasisBundleDescription.Tags, preset),
             };
@@ -634,6 +634,24 @@ public static class BasisSDKCommonInspector
         return next;
     }
 
+    private static string PresetLabel(string preset)
+    {
+        switch (preset)
+        {
+            case "18+": return BasisEditorLocalization.Get("sdk.commonInspector.contentTags.preset.adult");
+            case "Sexual Content": return BasisEditorLocalization.Get("sdk.commonInspector.contentTags.preset.sexualContent");
+            case "Nudity": return BasisEditorLocalization.Get("sdk.commonInspector.contentTags.preset.nudity");
+            case "Horror": return BasisEditorLocalization.Get("sdk.commonInspector.contentTags.preset.horror");
+            case "Gore": return BasisEditorLocalization.Get("sdk.commonInspector.contentTags.preset.gore");
+            case "Violence": return BasisEditorLocalization.Get("sdk.commonInspector.contentTags.preset.violence");
+            case "Drugs": return BasisEditorLocalization.Get("sdk.commonInspector.contentTags.preset.drugs");
+            case "Seizure Warning": return BasisEditorLocalization.Get("sdk.commonInspector.contentTags.preset.seizureWarning");
+            case "Loud Audio": return BasisEditorLocalization.Get("sdk.commonInspector.contentTags.preset.loudAudio");
+            case "Flashing Lights": return BasisEditorLocalization.Get("sdk.commonInspector.contentTags.preset.flashingLights");
+            default: return preset;
+        }
+    }
+
     private static bool IsPreset(string tag)
     {
         for (int i = 0; i < ContentTagPresets.Length; i++)
@@ -681,7 +699,7 @@ public static class BasisSDKCommonInspector
                 placementChoices.Add(value);
             }
         }
-        PopupField<BasisPropSpawnPlacement> placementField = new PopupField<BasisPropSpawnPlacement>(BasisEditorLocalization.Get("sdk.propInspector.spawn.placement"), placementChoices, prop.SpawnMetaData.Placement, value => ObjectNames.NicifyVariableName(value.ToString()), value => ObjectNames.NicifyVariableName(value.ToString()));
+        PopupField<BasisPropSpawnPlacement> placementField = new PopupField<BasisPropSpawnPlacement>(BasisEditorLocalization.Get("sdk.propInspector.spawn.placement"), placementChoices, prop.SpawnMetaData.Placement, SpawnPlacementName, SpawnPlacementName);
         foldout.Add(placementField);
 
         Label placementHelp = BodyLabel(string.Empty);
@@ -690,7 +708,8 @@ public static class BasisSDKCommonInspector
         placementHelp.style.opacity = 0.7f;
         foldout.Add(placementHelp);
 
-        EnumField handField = new EnumField(BasisEditorLocalization.Get("sdk.propInspector.spawn.hand"), prop.SpawnMetaData.Hand);
+        List<BasisPropSpawnHand> handChoices = new List<BasisPropSpawnHand>((BasisPropSpawnHand[])Enum.GetValues(typeof(BasisPropSpawnHand)));
+        PopupField<BasisPropSpawnHand> handField = new PopupField<BasisPropSpawnHand>(BasisEditorLocalization.Get("sdk.propInspector.spawn.hand"), handChoices, prop.SpawnMetaData.Hand, SpawnHandName, SpawnHandName);
         foldout.Add(handField);
 
         Toggle distanceToggle = new Toggle(BasisEditorLocalization.Get("sdk.propInspector.spawn.overrideDistance"))
@@ -817,6 +836,44 @@ public static class BasisSDKCommonInspector
     private static void SetRowVisible(VisualElement row, bool visible)
     {
         row.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+    }
+
+    private static string SpawnPlacementName(BasisPropSpawnPlacement placement)
+    {
+        switch (placement)
+        {
+            case BasisPropSpawnPlacement.Raycast:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placementName.raycast");
+            case BasisPropSpawnPlacement.InFrontOfPlayer:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placementName.inFront");
+            case BasisPropSpawnPlacement.AtPlayerOrigin:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placementName.playerOrigin");
+            case BasisPropSpawnPlacement.InAirAtDistance:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placementName.inAir");
+            case BasisPropSpawnPlacement.OnGround:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placementName.onGround");
+            case BasisPropSpawnPlacement.InHand:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placementName.inHand");
+            case BasisPropSpawnPlacement.AtAnchor:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placementName.atAnchor");
+            default:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.placementName.unspecified");
+        }
+    }
+
+    private static string SpawnHandName(BasisPropSpawnHand hand)
+    {
+        switch (hand)
+        {
+            case BasisPropSpawnHand.NonDominant:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.handName.nonDominant");
+            case BasisPropSpawnHand.Left:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.handName.left");
+            case BasisPropSpawnHand.Right:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.handName.right");
+            default:
+                return BasisEditorLocalization.Get("sdk.propInspector.spawn.handName.dominant");
+        }
     }
 
     private static string SpawnPlacementHelp(BasisPropSpawnPlacement placement)

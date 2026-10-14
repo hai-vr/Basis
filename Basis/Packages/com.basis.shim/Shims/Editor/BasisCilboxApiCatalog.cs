@@ -442,6 +442,25 @@ sync.Channels = BasisTransformSyncShim.ChannelPose;
 sync.Space = BasisTransformSyncShim.SpaceWorld;
 sync.Enabled = true;",
             },
+            new CilboxApiEntry
+            {
+                GroupKey = GroupNetworking,
+                TitleKey = "sdk.cilbox.api.compression.title",
+                SummaryKey = "sdk.cilbox.api.compression.summary",
+                Requires = new[] { new CilboxApiRequirement("Basis.Shims.BasisCompressionShim", "Compress"), new CilboxApiRequirement("Basis.Shims.BasisCompressionShim", "Decompress") },
+                Example =
+@"using Basis.Shims;
+
+// LZ4 on the host. Data that does not shrink is sent as is, plus one byte.
+net.SendCustomNetworkEvent(BasisCompressionShim.Compress(state), DeliveryMethod.ReliableOrdered);
+
+void OnMessage(ushort sender, byte[] buffer, DeliveryMethod method)
+{
+    // Anything malformed, or bigger than MaxLength (1 MB) once unpacked, is null.
+    byte[] state = BasisCompressionShim.Decompress(buffer);
+    if (state == null) return;
+}",
+            },
 
             // ---------------------------------------------------------- objects
             new CilboxApiEntry
@@ -926,6 +945,27 @@ for (int i = 0; i < count; i++)
     string[] answers = question.GetStringArray(""a"");
     int correct = question.GetInt(""correct"", 0);
 }",
+            },
+            new CilboxApiEntry
+            {
+                GroupKey = GroupData,
+                TitleKey = "sdk.cilbox.api.saves.title",
+                SummaryKey = "sdk.cilbox.api.saves.summary",
+                Requires = new[] { new CilboxApiRequirement("Basis.Shims.BasisSaveShim", "Save"), new CilboxApiRequirement("Basis.Shims.BasisSaveShim", "Load") },
+                Example =
+@"using Basis.Shims;
+
+// Pass this so Basis knows which content is asking. Until the player agrees,
+// Save returns false and Load returns null, and the rest of the script runs.
+bool saved = BasisSaveShim.Save(this, ""progress"", bytes);
+byte[] loaded = BasisSaveShim.Load(this, ""progress"");
+BasisSaveShim.Delete(this, ""progress"");
+
+// Saves are filed under the Content ID. Name a store to share them, for
+// example between a world and its props.
+BasisSaveShim.Save(this, ""my-game"", ""progress"", bytes);
+
+// 256 KB per slot, 32 slots and 1 MB per store, 8 writes a second.",
             },
             // ---------------------------------------------------------- media
             new CilboxApiEntry

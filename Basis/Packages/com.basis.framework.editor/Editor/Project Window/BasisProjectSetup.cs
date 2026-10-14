@@ -1030,10 +1030,11 @@ public class ListenForLocalSpawn : MonoBehaviour
         var style = new GUIStyle(EditorStyles.miniButtonMid);
         Color col;
         string txt;
+        string chipFormat = Tr("projectSetup.status.chipFormat", "{0}: {1}");
 
-        if (!ok.HasValue) { col = new Color(0.5f, 0.5f, 0.5f, 0.2f); txt = $"{label}: ?"; }
-        else if (ok.Value) { col = new Color(0.2f, 0.6f, 0.2f, 0.25f); txt = $"{label}: ✓"; }
-        else { col = new Color(0.8f, 0.2f, 0.2f, 0.25f); txt = $"{label}: ✕"; }
+        if (!ok.HasValue) { col = new Color(0.5f, 0.5f, 0.5f, 0.2f); txt = string.Format(chipFormat, label, "?"); }
+        else if (ok.Value) { col = new Color(0.2f, 0.6f, 0.2f, 0.25f); txt = string.Format(chipFormat, label, "✓"); }
+        else { col = new Color(0.8f, 0.2f, 0.2f, 0.25f); txt = string.Format(chipFormat, label, "✕"); }
 
         var content = new GUIContent(txt, tooltip ?? label);
         var r = GUILayoutUtility.GetRect(content, style, GUILayout.Width(150));
@@ -1056,7 +1057,7 @@ public class ListenForLocalSpawn : MonoBehaviour
             using (new EditorGUILayout.VerticalScope(GUILayout.Width(60)))
             {
                 GUILayout.Space(4);
-                if (BasisEditorUI.PrimaryButton("Copy", 24f))
+                if (BasisEditorUI.PrimaryButton(Tr("editor.common.copy", "Copy"), 24f))
                 {
                     EditorGUIUtility.systemCopyBuffer = code;
                     _copiedToastUntil = EditorApplication.timeSinceStartup + 1.25;

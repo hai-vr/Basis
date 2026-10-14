@@ -785,6 +785,8 @@ public static partial class BasisNetworkEvents
                 Reader.Recycle();
             }
         });
+
+        BasisClientMessageRegistry.RegisterCore(BasisNetworkCommons.StorageChannel, BasisServerStorageClient.HandleReply);
     }
     [AutoStaticsCleanup] public static Action<BasisNetworkStatistics.Snapshot> Snapshotdata;
     public static void IncomingData(NetPacketReader Reader)

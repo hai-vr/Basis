@@ -684,6 +684,10 @@ namespace Cilbox
 		internal string consentHash;
 		internal HashSet<string> consentGranted;
 		internal CilboxBasisConsent.Scan consentScan;
+		internal string saveContentKey;
+		internal HashSet<string> saveStores;
+		internal double saveWindowStart;
+		internal int saveWindowWrites;
 
 		protected bool Beyond(string item, bool floor)
 		{
@@ -695,7 +699,7 @@ namespace Cilbox
 			return !floor && CilboxBasisConsent.Permits(this, item);
 		}
 
-		protected static string MethodItem(Type declaringType, string name)
+		internal static string MethodItem(Type declaringType, string name)
 		{
 			string type = declaringType != null && declaringType.FullName != null ? GetSanitizedTypeName(declaringType) : "?";
 			return CilboxItems.MethodPrefix + type + "." + name;
@@ -805,6 +809,18 @@ namespace Cilbox
 					   name == "ToArray" || name == "CopyTo" ||
 					   name == "Equals" || name == "GetHashCode" || name == "ToString" ||
 					   Beyond(MethodItem(declaringType, name), true);
+			}
+
+			if (declaringType == typeof(Basis.Shims.BasisSaveShim))
+			{
+				if (name != nameof(Basis.Shims.BasisSaveShim.Save) && name != nameof(Basis.Shims.BasisSaveShim.Load) && name != nameof(Basis.Shims.BasisSaveShim.Delete)) return Beyond(MethodItem(declaringType, name), true);
+				Beyond(MethodItem(declaringType, name), false);
+			}
+
+			if (declaringType == typeof(Basis.Shims.BasisServerStorageShim))
+			{
+				if (!CilboxServerStorage.IsEntryPoint(name)) return Beyond(MethodItem(declaringType, name), true);
+				if (CilboxServerStorage.NeedsConsent(name)) Beyond(MethodItem(declaringType, name), false);
 			}
 
 			return CuratedMethodAllowed(declaringType, name) || Beyond(MethodItem(declaringType, name), false);

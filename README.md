@@ -117,6 +117,7 @@ This project includes third-party software under the following licenses:
 ### Apache License 2.0
 - [Steam Audio](https://github.com/ValveSoftware/steam-audio) - See `Basis/Packages/com.steam.steamaudio/LICENSE.md`
 - [OpenLipSync ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT) - See `Basis/Packages/com.basisvr.openlipsync/THIRD_PARTY_NOTICES.md`
+- [SQLitePCLRaw](https://github.com/ericsink/SQLitePCL.raw) - Copyright Eric Sink and contributors. NuGet dependency of the standalone server's sqlite player storage.
 
 ### BSD-3-Clause
 - [OpenVR](https://github.com/valvesoftware/openvr) - (C) Valve Corporation. See `Basis/Packages/com.valvesoftware.unity.openvr/LICENSE.md`
@@ -140,9 +141,13 @@ This project includes third-party software under the following licenses:
 - [SimpleBase](https://github.com/ssg/SimpleBase) - Copyright Sedat Kapanoglu. See `Basis/Packages/org.basisvr.simplebase/LICENSE`
 - [ZeroMessenger](https://github.com/Cysharp/ZeroMessenger) - Copyright 2024 Annulus Games. See `Basis/Packages/com.basis.zeromessenger/LICENSE.md`
 - [K4os.Compression.LZ4](https://github.com/MiloszKrajewski/K4os.Compression.LZ4) - Copyright 2017 Milosz Krajewski. See `Basis/Packages/org.basisvr.k4os.compression.lz4/LICENSE`
+- [Microsoft.Data.Sqlite](https://github.com/dotnet/efcore) - Copyright .NET Foundation and Contributors. NuGet dependency of the standalone server's sqlite player storage.
 - [UnityJigglePhysics](https://github.com/naelstrof/UnityJigglePhysics) - MIT licensed upstream
 - [AudioLink](https://github.com/llealloo/vrc-udon-audio-link) - MIT licensed upstream
 - [cilbox](https://github.com/cnlohr/cilbox) - MIT licensed upstream
+
+### Public Domain
+- [SQLite](https://sqlite.org/copyright.html) - Bundled through SQLitePCLRaw for the standalone server's sqlite player storage.
 
 ### SIL Open Font License 1.1
 - [Inter](https://github.com/rsms/inter) - Copyright 2020 The Inter Project Authors. See `Basis/Packages/com.basis.sdk/LICENSE-Inter-OFL.txt`.

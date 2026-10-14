@@ -219,6 +219,7 @@ public class PermissionManagerTests
         Assert.Equal("basis.ownership.get", PermNodes.OwnershipGet);
         Assert.Equal("basis.contentshare.delete", PermNodes.ContentShareDelete);
         Assert.Equal("basis.contentshare.create", PermNodes.ContentShareCreate);
+        Assert.Equal("basis.storage.use", PermNodes.StorageUse);
         Assert.Equal("basis.protection", PermNodes.protection);
         Assert.Equal("basis.configuration", PermNodes.ConfigurationEditor);
         Assert.Equal("basis.moderation", PermNodes.PlayerModeration);
@@ -377,6 +378,7 @@ public class PermissionManagerTests
             PermNodes.ResourceLoadWorld, PermNodes.ResourceUnloadWorld,
             PermNodes.OwnershipTransfer, PermNodes.OwnershipRemove, PermNodes.OwnershipGet,
             PermNodes.ContentShareDelete, PermNodes.ContentShareCreate,
+            PermNodes.StorageUse,
         }));
     }
 
@@ -500,7 +502,7 @@ public class PermissionManagerTests
         Assert.True(custom.Has(uuid, "custom.only.node"));
         Assert.True(custom.Has(uuid, PermNodes.help));
         Assert.True(custom.TryGetGroup("default", out var def));
-        Assert.Equal(13, def.Nodes.Count);
+        Assert.Equal(14, def.Nodes.Count);
     }
 
     [Fact]

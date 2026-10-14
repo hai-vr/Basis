@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Basis.Editor.Localization;
 using Basis.Scripts.Networking.Sync;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -13,26 +14,26 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
         var root = new VisualElement();
 
         root.Add(BasisSyncInspectorUI.Header(
-            "Basis Synced Transform",
-            "The owner streams the enabled axes; every other client's copy is interpolated and composed. Call TakeOwnership() (e.g. on grab) to become the authority."));
+            BasisEditorLocalization.Get("editor.sync.transform.title"),
+            BasisEditorLocalization.Get("editor.sync.transform.description")));
 
         root.Add(BasisSyncInspectorUI.ValidationContainer(Validate));
 
-        VisualElement target = BasisSyncInspectorUI.Card("Target");
-        target.Add(BasisSyncInspectorUI.Described(new PropertyField(serializedObject.FindProperty("Target")),
-            "Transform that is synced. Defaults to this GameObject."));
+        VisualElement target = BasisSyncInspectorUI.Card(BasisEditorLocalization.Get("editor.common.target"));
+        target.Add(BasisSyncInspectorUI.Described(new PropertyField(serializedObject.FindProperty("Target"), BasisEditorLocalization.Get("editor.common.target")),
+            BasisEditorLocalization.Get("editor.sync.transform.target.tooltip")));
         root.Add(target);
 
-        root.Add(AxisGroup("Position", "SyncPosition", "InterpolatePosition", "PositionX", "PositionY", "PositionZ"));
+        root.Add(AxisGroup(BasisEditorLocalization.Get("editor.sync.channel.position"), "SyncPosition", "InterpolatePosition", "PositionX", "PositionY", "PositionZ"));
         root.Add(RotationGroup());
         root.Add(ScaleGroup());
 
-        VisualElement space = BasisSyncInspectorUI.Card("Space", false);
-        space.Add(BasisSyncInspectorUI.Described(new PropertyField(serializedObject.FindProperty("WorldSpace")),
-            "Sync world-space pose instead of local (relative to the parent)."));
-        space.Add(BasisSyncInspectorUI.Described(new PropertyField(serializedObject.FindProperty("RelativeTo")),
-            "Encode position in this transform's space so a tight Ranged window can cover a large world. Both clients need the same reference."));
-        var relHint = new Label("RelativeTo: encode position in that transform's space so a tight Ranged window covers a large world (both clients need the same reference).");
+        VisualElement space = BasisSyncInspectorUI.Card(BasisEditorLocalization.Get("editor.sync.transform.space.card"), false);
+        space.Add(BasisSyncInspectorUI.Described(new PropertyField(serializedObject.FindProperty("WorldSpace"), BasisEditorLocalization.Get("editor.sync.transform.worldSpace")),
+            BasisEditorLocalization.Get("editor.sync.transform.worldSpace.tooltip")));
+        space.Add(BasisSyncInspectorUI.Described(new PropertyField(serializedObject.FindProperty("RelativeTo"), BasisEditorLocalization.Get("editor.sync.relativeTo")),
+            BasisEditorLocalization.Get("editor.sync.relativeTo.tooltip")));
+        var relHint = new Label(BasisEditorLocalization.Get("editor.sync.transform.relativeToHint"));
         relHint.style.whiteSpace = WhiteSpace.Normal;
         relHint.style.fontSize = 10;
         relHint.style.opacity = 0.8f;
@@ -62,7 +63,7 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
         if (t == null) return issues;
 
         if (t.Target == null)
-            issues.Add(BasisSyncIssue.Error("Target is not assigned — nothing will be synced."));
+            issues.Add(BasisSyncIssue.Error(BasisEditorLocalization.Get("editor.sync.transform.noTarget")));
 
         bool posAxes = t.PositionX || t.PositionY || t.PositionZ;
         bool rotAxes = t.RotationX || t.RotationY || t.RotationZ;
@@ -74,14 +75,14 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
         bool scaleActive = t.SyncScale && (t.ScaleUniform || scaleAxes);
 
         if (t.SyncPosition && !posAxes)
-            issues.Add(BasisSyncIssue.Warning("Sync Position is on but all X/Y/Z axes are off — position won't sync."));
+            issues.Add(BasisSyncIssue.Warning(BasisEditorLocalization.Get("editor.sync.transform.positionAxesOff")));
         if (t.SyncRotation && rotEuler && !rotAxes)
-            issues.Add(BasisSyncIssue.Warning("Sync Rotation (Euler) is on but all X/Y/Z axes are off — rotation won't sync."));
+            issues.Add(BasisSyncIssue.Warning(BasisEditorLocalization.Get("editor.sync.transform.rotationAxesOff")));
         if (t.SyncScale && !t.ScaleUniform && !scaleAxes)
-            issues.Add(BasisSyncIssue.Warning("Sync Scale is on but all X/Y/Z axes are off — scale won't sync."));
+            issues.Add(BasisSyncIssue.Warning(BasisEditorLocalization.Get("editor.sync.transform.scaleAxesOff")));
 
         if (!(posActive || rotActive || scaleActive))
-            issues.Add(BasisSyncIssue.Warning("Nothing is being synced — enable Position, Rotation, or Scale with at least one axis."));
+            issues.Add(BasisSyncIssue.Warning(BasisEditorLocalization.Get("editor.sync.transform.nothingSynced")));
 
         return issues;
     }
@@ -90,15 +91,15 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
     {
         VisualElement card = BasisSyncInspectorUI.Card(title);
 
-        var sync = new Toggle("Sync " + title) { bindingPath = syncProp, tooltip = $"Stream {title.ToLower()} from the owner to every other client." };
+        var sync = new Toggle(BasisEditorLocalization.Get("editor.sync.syncPosition")) { bindingPath = syncProp, tooltip = BasisEditorLocalization.Get("editor.sync.transform.syncPosition.tooltip") };
         VisualElement row = AxisRow(x, y, z);
-        row.tooltip = "Per-axis include toggles — turn off axes that never change to shrink the packet.";
+        row.tooltip = BasisEditorLocalization.Get("editor.sync.axisRow.tooltip");
         row.SetEnabled(serializedObject.FindProperty(syncProp).boolValue);
         sync.RegisterValueChangedCallback(evt => row.SetEnabled(evt.newValue));
 
         card.Add(sync);
         card.Add(row);
-        card.Add(new Toggle("Interpolate") { bindingPath = interpProp, tooltip = "Smooth this channel between received updates instead of snapping to each packet." });
+        card.Add(new Toggle(BasisEditorLocalization.Get("editor.sync.interpolate")) { bindingPath = interpProp, tooltip = BasisEditorLocalization.Get("editor.sync.transform.interpolatePosition.tooltip") });
         return card;
     }
 
@@ -129,16 +130,16 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
 
     private VisualElement RotationGroup()
     {
-        VisualElement card = BasisSyncInspectorUI.Card("Rotation");
+        VisualElement card = BasisSyncInspectorUI.Card(BasisEditorLocalization.Get("editor.sync.channel.rotation"));
 
-        var sync = new Toggle("Sync Rotation") { bindingPath = "SyncRotation", tooltip = "Stream rotation from the owner to every other client." };
-        var mode = new PropertyField(serializedObject.FindProperty("RotationMode"), "Mode");
-        mode.tooltip = "Orientation encoding. Smallest Three = compact full rotation; Quaternion = raw/half; Euler = per-axis (lets you sync just one axis, e.g. a hinged door).";
-        var bits = new SliderInt("Bits / component", 6, 16) { showInputField = true, bindingPath = "SmallestThreeBits", tooltip = "Precision of the Smallest-Three encoding. More bits = finer orientation, larger packets." };
+        var sync = new Toggle(BasisEditorLocalization.Get("editor.sync.syncRotation")) { bindingPath = "SyncRotation", tooltip = BasisEditorLocalization.Get("editor.sync.transform.syncRotation.tooltip") };
+        var mode = new PropertyField(serializedObject.FindProperty("RotationMode"), BasisEditorLocalization.Get("editor.common.mode"));
+        mode.tooltip = BasisEditorLocalization.Get("editor.sync.transform.rotationMode.tooltip");
+        var bits = new SliderInt(BasisEditorLocalization.Get("editor.sync.smallestThreeBits"), 6, 16) { showInputField = true, bindingPath = "SmallestThreeBits", tooltip = BasisEditorLocalization.Get("editor.sync.smallestThreeBits.tooltip") };
         VisualElement row = AxisRow("RotationX", "RotationY", "RotationZ");
-        row.tooltip = "Euler mode only — include this rotation axis.";
+        row.tooltip = BasisEditorLocalization.Get("editor.sync.transform.rotationAxes.tooltip");
 
-        var hint = new Label("XYZ apply to Euler mode only — Smallest Three / Quaternion sync the whole orientation.");
+        var hint = new Label(BasisEditorLocalization.Get("editor.sync.transform.rotationHint"));
         hint.style.whiteSpace = WhiteSpace.Normal;
         hint.style.fontSize = 10;
         hint.style.opacity = 0.8f;
@@ -159,18 +160,18 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
         card.Add(bits);
         card.Add(row);
         card.Add(hint);
-        card.Add(new Toggle("Interpolate") { bindingPath = "InterpolateRotation", tooltip = "Smooth rotation between received updates instead of snapping to each packet." });
+        card.Add(new Toggle(BasisEditorLocalization.Get("editor.sync.interpolate")) { bindingPath = "InterpolateRotation", tooltip = BasisEditorLocalization.Get("editor.sync.interpolateRotation.tooltip") });
         return card;
     }
 
     private VisualElement ScaleGroup()
     {
-        VisualElement card = BasisSyncInspectorUI.Card("Scale");
+        VisualElement card = BasisSyncInspectorUI.Card(BasisEditorLocalization.Get("editor.sync.channel.scale"));
 
-        var sync = new Toggle("Sync Scale") { bindingPath = "SyncScale", tooltip = "Stream scale from the owner to every other client." };
-        var uniform = new Toggle("Uniform (one value → XYZ)") { bindingPath = "ScaleUniform", tooltip = "Stream a single value applied to all three scale axes (smaller than three separate axes)." };
+        var sync = new Toggle(BasisEditorLocalization.Get("editor.sync.syncScale")) { bindingPath = "SyncScale", tooltip = BasisEditorLocalization.Get("editor.sync.transform.syncScale.tooltip") };
+        var uniform = new Toggle(BasisEditorLocalization.Get("editor.sync.scaleUniform")) { bindingPath = "ScaleUniform", tooltip = BasisEditorLocalization.Get("editor.sync.scaleUniform.tooltip") };
         VisualElement row = AxisRow("ScaleX", "ScaleY", "ScaleZ");
-        row.tooltip = "Per-axis include toggles — turn off axes that never change to shrink the packet.";
+        row.tooltip = BasisEditorLocalization.Get("editor.sync.axisRow.tooltip");
 
         void Apply(bool on, bool uni)
         {
@@ -184,32 +185,32 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
         card.Add(sync);
         card.Add(uniform);
         card.Add(row);
-        card.Add(new Toggle("Interpolate") { bindingPath = "InterpolateScale", tooltip = "Smooth scale between received updates instead of snapping to each packet." });
+        card.Add(new Toggle(BasisEditorLocalization.Get("editor.sync.interpolate")) { bindingPath = "InterpolateScale", tooltip = BasisEditorLocalization.Get("editor.sync.interpolateScale.tooltip") });
         return card;
     }
 
     private VisualElement BuildCompression()
     {
-        VisualElement foldout = BasisSyncInspectorUI.Card("Compression (per axis)", false);
+        VisualElement foldout = BasisSyncInspectorUI.Card(BasisEditorLocalization.Get("editor.sync.compression.card"), false);
 
-        var note = new Label("Inherit / default = Raw (32-bit). Set Half to halve the cost, or Ranged for min/max + bit level — fewer bits within a known range = smaller packets.");
+        var note = new Label(BasisEditorLocalization.Get("editor.sync.transform.compressionNote"));
         note.style.whiteSpace = WhiteSpace.Normal;
         note.style.fontSize = 10;
         note.style.opacity = 0.8f;
         note.style.marginBottom = 4;
         foldout.Add(note);
 
-        foldout.Add(GroupLabel("Position"));
+        foldout.Add(GroupLabel(BasisEditorLocalization.Get("editor.sync.channel.position")));
         foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("PosCompX"), "X"));
         foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("PosCompY"), "Y"));
         foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("PosCompZ"), "Z"));
 
-        foldout.Add(GroupLabel("Rotation (Euler mode only — Smallest Three / Quaternion ignore these)"));
+        foldout.Add(GroupLabel(BasisEditorLocalization.Get("editor.sync.transform.compressionRotationGroup")));
         foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("RotCompX"), "X"));
         foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("RotCompY"), "Y"));
         foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("RotCompZ"), "Z"));
 
-        foldout.Add(GroupLabel("Scale"));
+        foldout.Add(GroupLabel(BasisEditorLocalization.Get("editor.sync.channel.scale")));
         foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("ScaleCompX"), "X"));
         foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("ScaleCompY"), "Y"));
         foldout.Add(BasisSyncInspectorUI.CompressionAxisRow(serializedObject, serializedObject.FindProperty("ScaleCompZ"), "Z"));
@@ -242,7 +243,7 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
             if (t.PositionY) { posBits += t.PosCompY.ToSpec().BitCount; posFields++; }
             if (t.PositionZ) { posBits += t.PosCompZ.ToSpec().BitCount; posFields++; }
         }
-        model.Add("Position", posBits, posFields, posFields == 1 ? "1 axis" : posFields + " axes");
+        model.Add(BasisEditorLocalization.Get("editor.sync.channel.position"), posBits, posFields, BasisEditorLocalization.Get("editor.sync.wire.axes", posFields));
 
         int rotBits = 0, rotFields = 0;
         string rotDetail = "";
@@ -251,28 +252,28 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
             switch (t.RotationMode)
             {
                 case BasisRotationSyncMode.QuaternionHalf:
-                    rotBits = 64; rotFields = 4; rotDetail = "quaternion ×4 half";
+                    rotBits = 64; rotFields = 4; rotDetail = BasisEditorLocalization.Get("editor.sync.wire.quatHalf");
                     break;
                 case BasisRotationSyncMode.QuaternionRaw:
-                    rotBits = 128; rotFields = 4; rotDetail = "quaternion ×4 raw";
+                    rotBits = 128; rotFields = 4; rotDetail = BasisEditorLocalization.Get("editor.sync.wire.quatRaw");
                     break;
                 case BasisRotationSyncMode.Euler:
                     if (t.RotationX) { rotBits += t.RotCompX.ToSpec().BitCount; rotFields++; }
                     if (t.RotationY) { rotBits += t.RotCompY.ToSpec().BitCount; rotFields++; }
                     if (t.RotationZ) { rotBits += t.RotCompZ.ToSpec().BitCount; rotFields++; }
-                    rotDetail = rotFields == 1 ? "1 axis (Euler)" : rotFields + " axes (Euler)";
+                    rotDetail = BasisEditorLocalization.Get("editor.sync.wire.axesEuler", rotFields);
                     break;
                 default:
                 {
                     int magBits = UnityEngine.Mathf.Clamp(t.SmallestThreeBits, 2, 18);
                     rotBits = 2 + 3 * (1 + magBits);
                     rotFields = 1;
-                    rotDetail = $"smallest-three {magBits}b";
+                    rotDetail = BasisEditorLocalization.Get("editor.sync.wire.smallestThree", magBits);
                     break;
                 }
             }
         }
-        model.Add("Rotation", rotBits, rotFields, rotDetail);
+        model.Add(BasisEditorLocalization.Get("editor.sync.channel.rotation"), rotBits, rotFields, rotDetail);
 
         int scaleBits = 0, scaleFields = 0;
         string scaleDetail = "";
@@ -282,16 +283,16 @@ public class BasisSyncedTransformInspector : BasisDocInspector_UI
             {
                 scaleBits = t.ScaleCompX.ToSpec().BitCount;
                 scaleFields = 1;
-                scaleDetail = "uniform";
+                scaleDetail = BasisEditorLocalization.Get("editor.sync.wire.uniform");
             }
             else
             {
                 if (t.ScaleX) { scaleBits += t.ScaleCompX.ToSpec().BitCount; scaleFields++; }
                 if (t.ScaleY) { scaleBits += t.ScaleCompY.ToSpec().BitCount; scaleFields++; }
                 if (t.ScaleZ) { scaleBits += t.ScaleCompZ.ToSpec().BitCount; scaleFields++; }
-                scaleDetail = scaleFields == 1 ? "1 axis" : scaleFields + " axes";
+                scaleDetail = BasisEditorLocalization.Get("editor.sync.wire.axes", scaleFields);
             }
         }
-        model.Add("Scale", scaleBits, scaleFields, scaleDetail);
+        model.Add(BasisEditorLocalization.Get("editor.sync.channel.scale"), scaleBits, scaleFields, scaleDetail);
     }
 }

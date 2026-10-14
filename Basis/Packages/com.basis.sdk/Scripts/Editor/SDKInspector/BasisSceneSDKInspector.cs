@@ -41,6 +41,7 @@ public class BasisSceneSDKInspector : Editor
         if (visualTree != null)
         {
             uiElementsRoot = visualTree.CloneTree();
+            BasisEditorLocalization.LocalizeTree(uiElementsRoot, "sdk.uxml.scene.");
             rootElement.Add(uiElementsRoot);
 
             BasisSceneValidator = new BasisSceneValidator(BasisScene, rootElement);

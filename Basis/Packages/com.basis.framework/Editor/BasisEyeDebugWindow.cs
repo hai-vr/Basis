@@ -1,3 +1,4 @@
+using Basis.Editor.Localization;
 using UnityEditor;
 using UnityEngine;
 
@@ -13,16 +14,16 @@ namespace Basis.Scripts.Device_Management.EyeTracking.Editor
     /// </summary>
     public sealed class BasisEyeDebugWindow : BasisTabbedEditorWindow
     {
-        protected override string HeaderTitle => "Eye Tracking";
+        protected override string HeaderTitle => BasisEditorLocalization.Get("editor.eyeDebug.title");
 
         protected override string HeaderSubtitle =>
-            "Device input through arbitration into the local eye driver. Play mode only.";
+            BasisEditorLocalization.Get("editor.eyeDebug.subtitle");
 
         [MenuItem("Basis/Debug/Eye Tracking", false, 603)]
         public static void ShowWindow()
         {
             BasisEyeDebugWindow w = GetWindow<BasisEyeDebugWindow>();
-            w.titleContent = new GUIContent("Eye Tracking");
+            w.titleContent = new GUIContent(BasisEditorLocalization.Get("editor.eyeDebug.title"));
             w.minSize = new Vector2(420, 520);
             w.Show();
         }

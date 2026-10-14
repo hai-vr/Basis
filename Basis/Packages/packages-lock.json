@@ -279,18 +279,6 @@
         "com.unity.ugui": "2.0.0"
       }
     },
-    "com.basis.setup": {
-      "version": "file:com.basis.setup",
-      "depth": 0,
-      "source": "embedded",
-      "dependencies": {
-        "com.unity.addressables": "2.9.1",
-        "com.unity.inputsystem": "1.19.0",
-        "com.unity.xr.management": "4.5.4",
-        "com.unity.xr.openxr": "1.17.1",
-        "com.unity.render-pipelines.universal": "17.5.0"
-      }
-    },
     "com.basis.shim": {
       "version": "file:com.basis.shim",
       "depth": 0,

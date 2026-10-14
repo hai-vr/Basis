@@ -163,6 +163,7 @@ namespace Basis
             BasisConsoleCommands.RegisterCommand("/clear", "Clears the console", BasisConsoleCommands.HandleClear);
             BasisConsoleCommands.RegisterCommand("/packages", "Lists the server packages built into this server.", HandlePackages);
             BasisConsoleCommands.RegisterPermissionCommands();
+            BasisStorageCommands.Register();
             BasisConsoleCommands.RegisterConfigurationCommands(config);
             if (config.EnableConsole)
             {

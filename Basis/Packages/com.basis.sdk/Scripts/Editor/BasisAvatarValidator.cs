@@ -932,6 +932,25 @@ public class BasisAvatarValidator : BasisValidationRunner
         errorPanel.style.display = DisplayStyle.None;
     }
 
+    private static string CategoryName(ValidationCategory category)
+    {
+        switch (category)
+        {
+            case ValidationCategory.Configuration:
+                return BasisEditorLocalization.Get("sdk.validator.category.configuration");
+            case ValidationCategory.GameObject:
+                return BasisEditorLocalization.Get("sdk.validator.category.gameObject");
+            case ValidationCategory.Performance:
+                return BasisEditorLocalization.Get("sdk.validator.category.performance");
+            case ValidationCategory.Security:
+                return BasisEditorLocalization.Get("sdk.validator.category.security");
+            case ValidationCategory.MissingReference:
+                return BasisEditorLocalization.Get("sdk.validator.category.missingReference");
+            default:
+                return BasisEditorLocalization.Get("editor.common.none");
+        }
+    }
+
     private VisualElement CreateCategoryPanel(ValidationCategory category)
     {
         VisualElement panel = new VisualElement();
@@ -952,7 +971,7 @@ public class BasisAvatarValidator : BasisValidationRunner
         label.style.unityFontStyleAndWeight = FontStyle.Bold;
         label.style.whiteSpace = WhiteSpace.Normal;
 
-        Label header = new Label(BasisEditorLocalization.Get("sdk.validator.warnings.header", category));
+        Label header = new Label(BasisEditorLocalization.Get("sdk.validator.warnings.header", CategoryName(category)));
         header.style.unityFontStyleAndWeight = FontStyle.Bold;
         header.style.color = new StyleColor(BasisEditorUI.Light ? new Color(0.10f, 0.10f, 0.10f) : Color.white);
         panel.Add(header);
@@ -1010,7 +1029,7 @@ public class BasisAvatarValidator : BasisValidationRunner
             {
                 if (Index >= maxDisplayCount && issues.Count > maxDisplayCount)
                 {
-                    _warningTextLines.Add(BasisEditorLocalization.Get("sdk.validator.warnings.more", issues.Count - Index, category));
+                    _warningTextLines.Add(BasisEditorLocalization.Get("sdk.validator.warnings.more", issues.Count - Index, CategoryName(category)));
                     break;
                 }
                 _warningTextLines.Add($"- {issues[Index].Message}");

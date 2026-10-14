@@ -1,3 +1,4 @@
+using Basis.Editor.Localization;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -167,7 +168,7 @@ public static class BasisMediaSceneMenu
     {
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
         if (prefab == null)
-            EditorUtility.DisplayDialog("Basis Media", $"Could not load {path}.", "OK");
+            EditorUtility.DisplayDialog("Basis Media", BasisEditorLocalization.Get("editor.mediaPlayer.sceneMenu.loadFailed", path), BasisEditorLocalization.Get("editor.common.ok"));
         return prefab;
     }
 

@@ -20,6 +20,10 @@ public static partial class BasisClientMessageRegistry
     /// <summary>The descriptors from the most recent server Supply, for introspection / plugin binding.</summary>
     public static SerializableBasis.BasisMessageDescriptor[] LastSupply { get; private set; }
 
+    private static volatile NetPeer lastSupplyPeer;
+
+    public static NetPeer LastSupplyPeer => lastSupplyPeer;
+
     private static readonly ConcurrentDictionary<string, BasisClientMessageHandler> PluginHandlersByName = new();
     private static readonly ConcurrentDictionary<string, SerializableBasis.BasisMessageDescriptor> PluginDescriptorsByName = new();
 
@@ -82,6 +86,8 @@ public static partial class BasisClientMessageRegistry
                 handled.Add(descriptor.Id);
             }
         }
+
+        lastSupplyPeer = peer;
 
         SerializableBasis.BasisMessageSubscribe subscribe = new SerializableBasis.BasisMessageSubscribe { Ids = handled.ToArray() };
         NetDataWriter writer = new NetDataWriter();

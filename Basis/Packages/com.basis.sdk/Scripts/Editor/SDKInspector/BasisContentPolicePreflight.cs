@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Basis.Editor.Localization;
 using Basis.Scripts.BasisSdk;
 using UnityEditor;
 using UnityEngine;
@@ -105,9 +106,8 @@ public static class BasisContentPolicePreflight
         if (removed.Length > 0)
         {
             container.Add(Box(
-                $"{removed.Length} component(s) will be REMOVED when this loads",
-                "These are not on the approved list for this content type. They are stripped before " +
-                "anything runs, so whatever depends on them will not work once uploaded.",
+                BasisEditorLocalization.Get("sdk.contentPolicePreflight.removed.title", removed.Length),
+                BasisEditorLocalization.Get("sdk.contentPolicePreflight.removed.body"),
                 removed,
                 HelpBoxMessageType.Error));
         }
@@ -115,11 +115,8 @@ public static class BasisContentPolicePreflight
         if (converted.Length > 0)
         {
             container.Add(Box(
-                $"{converted.Length} component(s) will be CONVERTED when this loads",
-                "Unity and Animation Rigging constraints are rewritten onto the Basis solver, and the " +
-                "rig that drove them is removed. They keep working, so no action is needed — but the " +
-                "originals will not be there afterwards, so anything referencing them by type needs " +
-                "to expect the Basis equivalent instead.",
+                BasisEditorLocalization.Get("sdk.contentPolicePreflight.converted.title", converted.Length),
+                BasisEditorLocalization.Get("sdk.contentPolicePreflight.converted.body"),
                 converted,
                 HelpBoxMessageType.Warning));
         }
@@ -134,7 +131,7 @@ public static class BasisContentPolicePreflight
         group.style.marginTop = 4;
         group.Add(new HelpBox($"{title}\n\n{body}", severity));
 
-        Foldout foldout = new Foldout { text = "Show affected objects", value = false };
+        Foldout foldout = new Foldout { text = BasisEditorLocalization.Get("sdk.contentPolicePreflight.showAffected"), value = false };
         foldout.style.marginLeft = 4;
         for (int Index = 0; Index < findings.Count; Index++)
         {

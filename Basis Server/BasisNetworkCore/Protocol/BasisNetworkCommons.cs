@@ -1084,8 +1084,10 @@ namespace Basis.Network.Core
         /// <summary>Developer hook — data only delivered to the server</summary>
         public const byte ServerBoundChannel = 31;
 
+        public const byte StorageChannel = 32;
+
         // ── Admin ────────────────────────────────────────────────────────────
-        // Channels 32 & 33 are free (held the removed server-side database).
+        // Channel 33 is free.
         /// <summary>Admin messages from client</summary>
         public const byte AdminChannel = 34;
 

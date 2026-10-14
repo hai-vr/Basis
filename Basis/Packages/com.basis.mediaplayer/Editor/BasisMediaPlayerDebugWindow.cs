@@ -1,3 +1,4 @@
+using Basis.Editor.Localization;
 using System;
 using System.IO;
 using System.Text;
@@ -37,7 +38,7 @@ public class BasisMediaPlayerDebugWindow : EditorWindow
     [MenuItem("Basis/Debug/Media Player", false, 606)]
     public static void ShowWindow()
     {
-        var window = GetWindow<BasisMediaPlayerDebugWindow>("Media Player Debug");
+        var window = GetWindow<BasisMediaPlayerDebugWindow>(BasisEditorLocalization.Get("editor.mediaPlayer.debug.windowTitle"));
         window.minSize = new Vector2(440, 600);
     }
 
@@ -46,7 +47,7 @@ public class BasisMediaPlayerDebugWindow : EditorWindow
         string package = PackagePath;
         if (string.IsNullOrEmpty(package))
         {
-            rootVisualElement.Add(new HelpBox("Could not resolve the package path for the media player editor assembly.", HelpBoxMessageType.Error));
+            rootVisualElement.Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.inspector.packagePathMissing"), HelpBoxMessageType.Error));
             return;
         }
 
@@ -56,11 +57,12 @@ public class BasisMediaPlayerDebugWindow : EditorWindow
             Path.Combine(package, "Editor/StyleSheets/MediaPlayerSDK.uss").Replace('\\', '/'));
         if (tree == null)
         {
-            rootVisualElement.Add(new HelpBox("MediaPlayerDebug.uxml missing.", HelpBoxMessageType.Error));
+            rootVisualElement.Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.inspector.uxmlMissing", "MediaPlayerDebug.uxml"), HelpBoxMessageType.Error));
             return;
         }
 
         tree.CloneTree(rootVisualElement);
+        BasisEditorLocalization.LocalizeTree(rootVisualElement, "editor.mediaPlayer.uxml.debug.");
         if (sheet != null) rootVisualElement.styleSheets.Add(sheet);
 
         _targetField = rootVisualElement.Q<ObjectField>("TargetPlayer");
@@ -132,15 +134,15 @@ public class BasisMediaPlayerDebugWindow : EditorWindow
         // 1. Player
         SetPill("P_State", _target.State.ToString(), StateTone(_target.State));
         Set("P_Position", live ? $"{_target.PositionSeconds:F2} s" : "—");
-        Set("P_Error", _target.ErrorCode != 0 ? _target.ErrorCode.ToString() : "none");
+        Set("P_Error", _target.ErrorCode != 0 ? _target.ErrorCode.ToString() : BasisEditorLocalization.Get("editor.mediaPlayer.debug.none"));
         Set("P_LoadGen", _target.LoadGeneration.ToString());
 
         // 2. Source / transport
         Set("S_Url", Redact(_target.url));
         Set("S_AudioUrl", string.IsNullOrEmpty(_target.ActiveAudioStreamUrl)
-            ? "(muxed)" : Redact(_target.ActiveAudioStreamUrl));
+            ? BasisEditorLocalization.Get("editor.mediaPlayer.debug.muxed") : Redact(_target.ActiveAudioStreamUrl));
         Set("S_Liveness", _target.liveness.ToString());
-        Set("S_Provider", _target.Media?.Provider ?? "(direct)");
+        Set("S_Provider", _target.Media?.Provider ?? BasisEditorLocalization.Get("editor.mediaPlayer.debug.direct"));
         Set("S_Title", _target.Media?.Title ?? "—");
 
         // 3. Decode
@@ -149,8 +151,8 @@ public class BasisMediaPlayerDebugWindow : EditorWindow
         Set("VD_VideoSize", _target.VideoSize == Vector2Int.zero
             ? "—"
             : $"{_target.VideoSize.x} × {_target.VideoSize.y}");
-        SetPill("VD_OutputTex", _target.Texture != null ? "YES" : "NO", _target.Texture != null ? Tone.Good : Tone.Neutral);
-        Set("VD_Origin", _target.OutputFrameIsTopLeftOrigin ? "top-left" : "bottom-left");
+        SetPill("VD_OutputTex", BasisEditorLocalization.Get(_target.Texture != null ? "sdk.cilbox.state.yes" : "sdk.cilbox.state.no"), _target.Texture != null ? Tone.Good : Tone.Neutral);
+        Set("VD_Origin", BasisEditorLocalization.Get(_target.OutputFrameIsTopLeftOrigin ? "editor.mediaPlayer.debug.originTopLeft" : "editor.mediaPlayer.debug.originBottomLeft"));
         Set("VD_Preference", BasisMediaPlayer.DecodePreference.ToString());
 
         // 4. Bank / present
@@ -159,7 +161,7 @@ public class BasisMediaPlayerDebugWindow : EditorWindow
         Set("VQ_BufferValue", live ? $"{banked} ms" : "—");
         // Against the configured depth, or 3 s as a yardstick on Auto.
         Fill("VQ_BufferFill", depth > 0 ? banked / (float)depth : banked / 3000f, banked > 0 ? Tone.Good : Tone.Bad);
-        Set("VQ_Depth", depth > 0 ? $"{depth} ms" : "Auto");
+        Set("VQ_Depth", depth > 0 ? $"{depth} ms" : BasisEditorLocalization.Get("editor.common.auto"));
         Set("VQ_Presented", _target.PresentedFrameCount.ToString());
         Set("VQ_FpsDisplayed", live ? $"{_presentedRate:F1} /s" : "—");
         Set("VQ_FpsRender", live ? $"{_editorFrameRate:F1} /s" : "—");
@@ -167,9 +169,9 @@ public class BasisMediaPlayerDebugWindow : EditorWindow
 
         // 5. Clock and sync
         Set("C_Position", live ? $"{_target.PositionSeconds:F3} s" : "—");
-        Set("C_Duration", _target.DurationSeconds > 0 ? $"{_target.DurationSeconds:F3} s" : "unknown");
+        Set("C_Duration", _target.DurationSeconds > 0 ? $"{_target.DurationSeconds:F3} s" : BasisEditorLocalization.Get("editor.mediaPlayer.debug.durationUnknown"));
         Set("C_SyncPpm", _target.SyncRatePpm != 0 ? $"{_target.SyncRatePpm} ppm" : "1x");
-        Set("C_MaxDivergence", _target.maxDivergenceMs > 0 ? $"{_target.maxDivergenceMs} ms" : "engine default");
+        Set("C_MaxDivergence", _target.maxDivergenceMs > 0 ? $"{_target.maxDivergenceMs} ms" : BasisEditorLocalization.Get("editor.mediaPlayer.debug.maxDivergenceDefault"));
 
         // 6. Audio
         Set("AD_Format", _target.AudioSampleRate > 0
@@ -179,28 +181,30 @@ public class BasisMediaPlayerDebugWindow : EditorWindow
         Set("AO_PullRate", live ? $"{_pullRate:F0} Hz" : "—");
         AudioSettings.GetDSPBufferSize(out int dspLength, out int dspCount);
         Set("AO_Dsp", $"{AudioSettings.outputSampleRate} Hz, {dspLength} × {dspCount}");
-        SetPill("AO_ListenerPaused", AudioListener.pause ? "YES" : "NO", AudioListener.pause ? Tone.Warn : Tone.Good);
+        SetPill("AO_ListenerPaused", BasisEditorLocalization.Get(AudioListener.pause ? "sdk.cilbox.state.yes" : "sdk.cilbox.state.no"), AudioListener.pause ? Tone.Warn : Tone.Good);
         BasisMediaPlayerAudio audio = _target.AudioComponent;
         Set("AO_Outputs", audio == null
-            ? "no audio component"
-            : $"{audio.BoundOutputCount} bound, {(audio.IsAnyOutputPlaying ? "playing" : "stopped")}");
+            ? BasisEditorLocalization.Get("editor.mediaPlayer.debug.noAudioComponent")
+            : audio.IsAnyOutputPlaying
+                ? BasisEditorLocalization.Get("editor.mediaPlayer.debug.outputsPlaying", audio.BoundOutputCount)
+                : BasisEditorLocalization.Get("editor.mediaPlayer.debug.outputsStopped", audio.BoundOutputCount));
         Set("AO_Level", audio == null || !live
             ? "—"
-            : $"peak {audio.LastPcmPeak:F3}, rms {audio.LastPcmRms:F3}");
+            : BasisEditorLocalization.Get("editor.mediaPlayer.debug.level", audio.LastPcmPeak, audio.LastPcmRms));
         Set("AO_Latency", audio == null ? "—" : $"{audio.EstimatedOutputLatencyUs / 1000.0:F1} ms");
 
         // 7. Captions and subtitles
         bool captionsOn = BasisMediaSettings.CaptionsEnabled.RawValue;
-        SetPill("CS_Enabled", captionsOn ? "ON" : "OFF", captionsOn ? Tone.Good : Tone.Neutral);
+        SetPill("CS_Enabled", BasisEditorLocalization.Get(captionsOn ? "editor.mediaPlayer.debug.on" : "editor.mediaPlayer.debug.off"), captionsOn ? Tone.Good : Tone.Neutral);
         Set("CS_Track", _target.SelectedSubtitleTrackIndex < 0
-            ? "in-band"
+            ? BasisEditorLocalization.Get("editor.mediaPlayer.debug.trackInBand")
             : $"#{_target.SelectedSubtitleTrackIndex}");
         Set("CS_TrackCount", _target.SubtitleTracks.Count.ToString());
-        Set("CS_Current", string.IsNullOrEmpty(_target.CurrentCaption) ? "(no caption)" : _target.CurrentCaption);
+        Set("CS_Current", string.IsNullOrEmpty(_target.CurrentCaption) ? BasisEditorLocalization.Get("editor.mediaPlayer.debug.noCaption") : _target.CurrentCaption);
 
         // 8. Engine
         BmCapabilitySet caps = BasisMediaPlayer.EngineCapabilities;
-        Set("E_Platform", caps?.platform ?? "(unavailable)");
+        Set("E_Platform", caps?.platform ?? BasisEditorLocalization.Get("editor.mediaPlayer.debug.platformUnavailable"));
         Set("E_Version", caps != null ? caps.version.ToString() : "—");
         Set("E_Video", DescribeVideo(caps));
         Set("E_Audio", DescribeAudio(caps));
@@ -208,10 +212,10 @@ public class BasisMediaPlayerDebugWindow : EditorWindow
 
         // Diagnostics row
         BasisMediaPlayerDiagnostics diagnostics = Diagnostics();
-        Set(_diagPath, diagnostics == null
-            ? "Path: (no logger attached)"
-            : $"Path: {diagnostics.ResolvedLogPath}");
-        Set(_diagRows, diagnostics == null ? "Rows: —" : $"Rows: {diagnostics.RowsWritten}");
+        Set(_diagPath, BasisEditorLocalization.Get("editor.mediaPlayer.debug.diagPath", diagnostics == null
+            ? BasisEditorLocalization.Get("editor.mediaPlayer.debug.noLogger")
+            : diagnostics.ResolvedLogPath));
+        Set(_diagRows, BasisEditorLocalization.Get("editor.mediaPlayer.debug.diagRows", diagnostics == null ? "—" : diagnostics.RowsWritten.ToString()));
         Show(_diagAttach, diagnostics == null);
         Show(_diagStart, diagnostics != null && live && !diagnostics.IsLogging);
         Show(_diagStop, diagnostics != null && live && diagnostics.IsLogging);
@@ -245,8 +249,8 @@ public class BasisMediaPlayerDebugWindow : EditorWindow
 
     static string DescribeVideo(BmCapabilitySet caps)
     {
-        if (caps?.video == null || caps.video.Length == 0) return "video: (none)";
-        var text = new StringBuilder("video: ");
+        if (caps?.video == null || caps.video.Length == 0) return BasisEditorLocalization.Get("editor.mediaPlayer.debug.video", BasisEditorLocalization.Get("editor.mediaPlayer.debug.noneParen"));
+        var text = new StringBuilder();
         for (int i = 0; i < caps.video.Length; i++)
         {
             BmVideoCap cap = caps.video[i];
@@ -254,31 +258,31 @@ public class BasisMediaPlayerDebugWindow : EditorWindow
             text.Append(cap.codec).Append(' ').Append(cap.route)
                 .Append(" ≤").Append(cap.max_width).Append('×').Append(cap.max_height);
         }
-        return text.ToString();
+        return BasisEditorLocalization.Get("editor.mediaPlayer.debug.video", text.ToString());
     }
 
     static string DescribeAudio(BmCapabilitySet caps)
     {
-        if (caps?.audio == null || caps.audio.Length == 0) return "audio: (none)";
-        var text = new StringBuilder("audio: ");
+        if (caps?.audio == null || caps.audio.Length == 0) return BasisEditorLocalization.Get("editor.mediaPlayer.debug.audio", BasisEditorLocalization.Get("editor.mediaPlayer.debug.noneParen"));
+        var text = new StringBuilder();
         for (int i = 0; i < caps.audio.Length; i++)
         {
             if (i > 0) text.Append(", ");
             text.Append(caps.audio[i].codec).Append(" ≤").Append(caps.audio[i].max_channels).Append("ch");
         }
-        return text.ToString();
+        return BasisEditorLocalization.Get("editor.mediaPlayer.debug.audio", text.ToString());
     }
 
     static string DescribeTransports(BmCapabilitySet caps)
     {
-        if (caps?.transports == null || caps.transports.Length == 0) return "transports: (none)";
-        var text = new StringBuilder("transports: ");
+        if (caps?.transports == null || caps.transports.Length == 0) return BasisEditorLocalization.Get("editor.mediaPlayer.debug.transports", BasisEditorLocalization.Get("editor.mediaPlayer.debug.noneParen"));
+        var text = new StringBuilder();
         for (int i = 0; i < caps.transports.Length; i++)
         {
             if (i > 0) text.Append(", ");
             text.Append(caps.transports[i].scheme);
         }
-        return text.ToString();
+        return BasisEditorLocalization.Get("editor.mediaPlayer.debug.transports", text.ToString());
     }
 
     // Query strings on resolved CDN URLs carry signed tokens, and this

@@ -1,3 +1,4 @@
+using Basis.Editor.Localization;
 using System;
 using System.IO;
 using UnityEditor;
@@ -33,7 +34,7 @@ public class BasisMediaPlayerEditor : Editor
         string package = PackagePath;
         if (string.IsNullOrEmpty(package))
         {
-            _root.Add(new HelpBox("Could not resolve the package path for the media player editor assembly.", HelpBoxMessageType.Error));
+            _root.Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.inspector.packagePathMissing"), HelpBoxMessageType.Error));
             return _root;
         }
 
@@ -43,10 +44,11 @@ public class BasisMediaPlayerEditor : Editor
             Path.Combine(package, "Editor/StyleSheets/MediaPlayerSDK.uss").Replace('\\', '/'));
         if (tree == null)
         {
-            _root.Add(new HelpBox("MediaPlayerSDK.uxml missing.", HelpBoxMessageType.Error));
+            _root.Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.inspector.uxmlMissing", "MediaPlayerSDK.uxml"), HelpBoxMessageType.Error));
             return _root;
         }
         tree.CloneTree(_root);
+        BasisEditorLocalization.LocalizeTree(_root, "editor.mediaPlayer.uxml.main.");
         if (sheet != null) _root.styleSheets.Add(sheet);
 
         BindByName("PerPlatformUrlsField", "perPlatformUrls");
@@ -159,9 +161,9 @@ public class BasisMediaPlayerEditor : Editor
             ? $"{_target.VideoSize.x}×{_target.VideoSize.y}"
             : "—");
         SetText(_frames, live
-            ? $"{_target.PresentedFrameCount} presented, {_target.FramesDecoded} decoded"
+            ? BasisEditorLocalization.Get("editor.mediaPlayer.player.frames", _target.PresentedFrameCount, _target.FramesDecoded)
             : "—");
-        SetText(_audio, live ? $"{_target.AudioFramesPulled} frames" : "—");
+        SetText(_audio, live ? BasisEditorLocalization.Get("editor.mediaPlayer.player.audioFrames", _target.AudioFramesPulled) : "—");
 
         // Only meaningful while a sync target is being converged on.
         int ppm = live ? _target.SyncRatePpm : 0;
@@ -174,7 +176,7 @@ public class BasisMediaPlayerEditor : Editor
 
         bool failed = live && _target.State == BmState.Error;
         Show(_error, failed);
-        if (failed && _error != null) _error.text = $"Engine error code {_target.ErrorCode}";
+        if (failed && _error != null) _error.text = BasisEditorLocalization.Get("editor.mediaPlayer.player.engineError", _target.ErrorCode);
     }
 
     static string Or(string value, string fallback) =>
@@ -262,7 +264,7 @@ public class BasisMediaPlayerEditor : Editor
 
         void Apply(bool perPlatform)
         {
-            urlField.label = perPlatform ? "Windows URL" : "URL";
+            urlField.label = BasisEditorLocalization.Get(perPlatform ? "editor.mediaPlayer.player.windowsUrl" : "editor.mediaPlayer.uxml.main.urlField.label");
             androidField.style.display = perPlatform ? DisplayStyle.Flex : DisplayStyle.None;
         }
     }

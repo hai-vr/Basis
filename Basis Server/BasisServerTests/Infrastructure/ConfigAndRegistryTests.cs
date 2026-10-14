@@ -172,6 +172,22 @@ public class ServerConfigurationDefaultsTests
     }
 
     [Fact]
+    public void Defaults_PlayerStorage()
+    {
+        var cfg = new Configuration();
+        Assert.True(cfg.StorageEnabled);
+        Assert.Equal("file", cfg.StorageBackend);
+        Assert.Equal(16384, cfg.StorageMaxBytesPerPlayer);
+        Assert.Equal(256, cfg.StorageMaxTotalMegabytes);
+        Assert.Equal("", cfg.StorageConnectionString);
+        Assert.Equal("basis_storage", cfg.StorageSqlTable);
+        Assert.True(Configuration.IsSecretFieldName(nameof(Configuration.StorageConnectionString)));
+        Assert.True(Configuration.RequiresRestart(nameof(Configuration.StorageBackend)));
+        Assert.True(Configuration.RequiresRestart(nameof(Configuration.StorageConnectionString)));
+        Assert.False(Configuration.RequiresRestart(nameof(Configuration.StorageMaxBytesPerPlayer)));
+    }
+
+    [Fact]
     public void Defaults_VersioningAndFolderConstants()
     {
         // 5: added EnableUplinkAvatarStream, so existing files get rewritten with its doc comment.
@@ -187,10 +203,12 @@ public class ServerConfigurationDefaultsTests
         // 14: added CompanyName and ProductName, the client identity a connection must report.
         // 15: added the persistent application-level ServerUUID.
         // 16: added the shared-orb leave timeout and deletion timer.
-        Assert.Equal(16, Configuration.CurrentConfigVersion);
+        // 17: added player storage.
+        Assert.Equal(17, Configuration.CurrentConfigVersion);
         Assert.Equal(0, new Configuration().ConfigVersion);
         Assert.Equal("config", Configuration.ConfigFolderName);
         Assert.Equal("logs", Configuration.LogsFolderName);
+        Assert.Equal("storage", Configuration.StorageFolderName);
         string defaultPath = Configuration.GetDefaultPath();
         Assert.True(Path.IsPathRooted(defaultPath));
         Assert.EndsWith(Path.Combine(Configuration.ConfigFolderName, "config.xml"), defaultPath);

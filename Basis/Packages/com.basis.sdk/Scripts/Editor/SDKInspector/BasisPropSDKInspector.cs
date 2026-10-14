@@ -40,6 +40,7 @@ public class BasisPropSDKInspector : Editor
         if (visualTree != null)
         {
             uiElementsRoot = visualTree.CloneTree();
+            BasisEditorLocalization.LocalizeTree(uiElementsRoot, "sdk.uxml.prop.");
             rootElement.Add(uiElementsRoot);
 
             BasisPropValidator = new BasisPropValidator(BasisProp, rootElement);

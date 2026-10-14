@@ -27,11 +27,13 @@ When you first run the server using `docker compose up`, the following directori
 ```text
 Docker/
 ├── config/
-└── initialresources/
+├── initialresources/
+└── storage/
 ```
 
 - `config/`: Contains XML configuration files for the server (e.g., main settings, admin lists, ban lists). The server may auto-generate or update these based on its internal defaults and environment variables.
 - `initialresources/`: Contains static assets required by the server at runtime. These are typically mounted as read-only into the container.
+- `storage/`: Player storage: the save data worlds, props and avatars keep for each player on this server (one checksummed file per player, or `storage.db` with `StorageBackend=sqlite`).
 
 ## Configuration
 
@@ -176,6 +178,7 @@ services:
 
 -   `./config:/app/config`: This volume mounts the `Docker/config/` directory on your host to `/app/config` inside the container. This allows server configuration to persist across container restarts. The server can read from and write to these files.
 -   `./initialresources:/app/initialresources:ro`: This mounts `Docker/initialresources/` as read-only into the container. These are static assets the server needs.
+-   `./storage:/app/storage`: Player storage. Without this mount every player's saved data is lost when the container is recreated. Only one server may use a storage folder at a time; to share player storage between servers, point them at one database with `StorageBackend`, `StorageConnectionString` and `StorageSqlTable` instead.
 
 ## Logging and Monitoring
 

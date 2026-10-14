@@ -35,6 +35,10 @@ namespace Cilbox
 			"Basis.Shims.BasisVectorArrayShim",
 			"Basis.Shims.BasisSphereCastShim",
 			"Basis.Shims.BasisBinaryShim",
+			"Basis.Shims.BasisCompressionShim",
+			"Basis.Shims.BasisSaveShim",
+			"Basis.Shims.BasisServerStorageShim",
+			"Basis.Shims.BasisServerStorageResult",
 
 			// HVR Vixxy
 			"HVR.Vixxy.HVRVixxyMenuItem", // Restrictive, see method whitelist.
