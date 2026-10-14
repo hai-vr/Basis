@@ -990,8 +990,13 @@ namespace Basis.Scripts.Drivers
                 SavedruntimeAnimatorController = Player.BasisAvatar.Animator.runtimeAnimatorController;
             }
 
-            Player.BasisAvatar.Animator.runtimeAnimatorController = BasisPlayerFactory.TposeController;
-            ForceUpdateAnimator(Player.BasisAvatar.Animator);
+            Animator animator = Player.BasisAvatar.Animator;
+            animator.runtimeAnimatorController = BasisPlayerFactory.TposeController;
+            // Force the animator's culling mode to be "AlwaysAnimate" to ensure the enforced t-pose applies.
+            AnimatorCullingMode cullingMode = animator.cullingMode;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            ForceUpdateAnimator(animator);
+            animator.cullingMode = cullingMode;
         }
 
         public void ForceUpdateAnimator(Animator Anim)

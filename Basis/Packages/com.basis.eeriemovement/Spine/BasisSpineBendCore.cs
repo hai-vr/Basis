@@ -114,7 +114,7 @@ namespace Basis.IK
     {
         const float sqrEpsilon = 1e-8f, epsilon = 1e-5f;
         // Head drop as a fraction of standing head height: the lean starts at StartDepth and is fully applied by FullDepth.
-        public const float StartDepth = 0.25f, FullDepth = 0.75f;
+        public const float StartDepth = 0.1f, FullDepth = 0.5f;
         // Max horizontal hip setback as a fraction of the head-to-hips distance.
         public const float MaxSetback = 0.6f;
         // Fraction of MaxSetback where the soft cap starts easing in. Lower is a gentler approach to the limit.
