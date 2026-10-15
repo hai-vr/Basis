@@ -245,6 +245,25 @@ public class ContentShareSettingTests
         Assert.True(Relayed(ContentShareSetting.Write(Value(ContentShareSetting.NumberType, "0.5"))));
     }
 
+    [Fact]
+    public void SharesFromAnyMenu_AreRelayed_NotOnlySettings()
+    {
+        ContentShareSetting.Contents camera = Value(ContentShareSetting.NumberType, "35", "35 mm");
+        camera.Menu = "handheldcamera";
+        camera.Tab = "camera.tab.image";
+        camera.Key = "#camera.section.lens>camera.focalLength";
+        ContentShareSetting.Contents servers = Location("=Host Locally", "@host");
+        servers.Menu = "servers";
+        ContentShareSetting.Contents player = Location("#menu.individualPlayer.volume", "@0f2c9a1e-5b7d-4c3e-9f10-2a6b8c4d7e91>menu.individualPlayer.audio");
+        player.Menu = "individualplayer";
+        Assert.True(Relayed(ContentShareSetting.Write(camera)));
+        Assert.True(Relayed(ContentShareSetting.Write(servers)));
+        Assert.True(Relayed(ContentShareSetting.Write(player)));
+        Assert.True(ContentShareSetting.TryRead(ContentShareSetting.Write(camera), out ContentShareSetting.Contents read));
+        Assert.Equal("handheldcamera", read.Menu);
+        Assert.Equal("#camera.section.lens>camera.focalLength", read.Key);
+    }
+
     [Theory]
     [MemberData(nameof(MalformedSettings))]
     public void MalformedSettingShares_AreRefused(string payload)

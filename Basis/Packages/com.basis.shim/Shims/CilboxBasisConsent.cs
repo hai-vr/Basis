@@ -515,7 +515,7 @@ namespace Cilbox
 			}
 		}
 
-		private static string NameOf(CilboxBasisCommon box)
+		internal static string NameOf(CilboxBasisCommon box)
 		{
 			if (box == null) return string.Empty;
 			BasisContentBase content = box.GetComponentInParent<BasisContentBase>(true);

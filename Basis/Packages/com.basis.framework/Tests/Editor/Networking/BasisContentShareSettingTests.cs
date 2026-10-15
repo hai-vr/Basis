@@ -64,6 +64,29 @@ public class BasisContentShareSettingTests
         Assert.IsFalse(BasisContentShareSetting.TryCapture(null, out ContentShareSetting.Contents location, out ContentShareSetting.Contents value));
         Assert.IsNull(location);
         Assert.IsNull(value);
-        Assert.IsFalse(BasisContentShareSetting.Matches(null, Location()));
+        Assert.IsFalse(BasisContentShareSetting.Matcher(Location())(null));
+        Assert.IsNull(BasisContentShareSetting.Matcher(null));
+        Assert.IsFalse(BasisContentShareSetting.CanOffer(null));
+    }
+
+    [Test]
+    public void AShareFromAnyMenuReadsBackWithItsMenu()
+    {
+        ContentShareSetting.Contents camera = Value(ContentShareSetting.NumberType, "35", "35 mm");
+        camera.Menu = "handheldcamera";
+        camera.Tab = "camera.tab.image";
+        camera.Key = "#camera.section.lens>camera.focalLength";
+        Assert.IsTrue(ContentShareSetting.TryRead(ContentShareSetting.Write(camera), out ContentShareSetting.Contents read));
+        Assert.AreEqual("handheldcamera", read.Menu);
+        Assert.AreEqual("camera.tab.image", read.Tab);
+        Assert.AreEqual("#camera.section.lens>camera.focalLength", read.Key);
+        Assert.AreEqual("35", read.Value);
+
+        ContentShareSetting.Contents player = Value(ContentShareSetting.NumberType, "0.5", "50%");
+        player.Menu = "individualplayer";
+        player.Tab = "@0f2c9a1e-5b7d-4c3e-9f10-2a6b8c4d7e91>menu.individualPlayer.audio";
+        player.Key = "#menu.individualPlayer.volume";
+        Assert.IsTrue(ContentShareSetting.TryRead(ContentShareSetting.Write(player), out ContentShareSetting.Contents readPlayer));
+        Assert.AreEqual(player.Tab, readPlayer.Tab);
     }
 }

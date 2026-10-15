@@ -60,6 +60,8 @@ namespace Basis.BasisUI
         public override bool HasResetDefault =>
             SupportsResetGesture && (SettingsBinding != null || _hasExplicitResetDefault);
 
+        public override bool HasPanelOptions => HasResetDefault || BasisContentShareSetting.CanOffer(this);
+
         public override string BoundSettingKey => SettingsBinding?.BindingKey;
 
         protected T ResetDefaultValue => SettingsBinding != null
@@ -75,7 +77,11 @@ namespace Basis.BasisUI
         /// </summary>
         public override void RequestReset()
         {
-            if (!HasResetDefault) return;
+            if (!HasResetDefault)
+            {
+                BasisContentShareSetting.OfferShare(this);
+                return;
+            }
 
             T target = ResetDefaultValue;
             string label = Descriptor && !string.IsNullOrEmpty(Descriptor.Title) ? Descriptor.Title : "this value";
@@ -143,18 +149,20 @@ namespace Basis.BasisUI
         /// </summary>
         public void ApplyDrivenValue(T value) => ApplyReset(value);
 
-        public override bool CanShareSetting => SupportsResetGesture && SettingsBinding != null;
+        public override bool CanShareSetting => SupportsResetGesture && (SettingsBinding != null || !string.IsNullOrEmpty(ShareTitleKey) || (Descriptor != null && !string.IsNullOrEmpty(Descriptor.Title)));
+
+        private T SharedValue => SettingsBinding != null ? SettingsBinding.RawValue : Value;
 
         public override bool TryGetShareValue(out string type, out string value, out string display)
         {
             display = null;
-            if (!CanShareSetting || !TryWriteShareValue(SettingsBinding.RawValue, out type, out value))
+            if (!CanShareSetting || !TryWriteShareValue(SharedValue, out type, out value))
             {
                 type = null;
                 value = null;
                 return false;
             }
-            display = FormatSettingValue(SettingsBinding.RawValue);
+            display = FormatSettingValue(SharedValue);
             return true;
         }
 
@@ -164,7 +172,7 @@ namespace Basis.BasisUI
             current = null;
             unchanged = false;
             if (!CanShareSetting || !TryParseShareValue(type, value, out T parsed)) return false;
-            T now = SettingsBinding.RawValue;
+            T now = SharedValue;
             shared = FormatSettingValue(parsed);
             current = FormatSettingValue(now);
             unchanged = EqualityComparer<T>.Default.Equals(now, parsed);

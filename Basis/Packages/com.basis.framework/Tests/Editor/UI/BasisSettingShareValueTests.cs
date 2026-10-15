@@ -95,7 +95,7 @@ namespace Basis.Tests.UI
         }
 
         [Test]
-        public void AControlWithoutASettingsBindingCannotBeShared()
+        public void AControlWithNeitherABindingNorATitleCannotBeShared()
         {
             PanelToggle toggle = BuildToggle();
             toggle.SetResetDefault(false);

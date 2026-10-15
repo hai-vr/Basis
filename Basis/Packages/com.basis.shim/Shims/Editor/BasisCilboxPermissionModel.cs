@@ -556,6 +556,8 @@ namespace Basis.Shims.Editor
             ("UnityEngine.GameObject", "AddComponent, SendMessage, SendMessageUpwards, BroadcastMessage", "sdk.cilbox.deny.gameObject"),
             ("UnityEngine.Component", "SendMessage, SendMessageUpwards, BroadcastMessage", "sdk.cilbox.deny.component"),
             ("UnityEngine.Animator", "GetBehaviour, GetBehaviours", "sdk.cilbox.deny.animator"),
+            ("UnityEngine.ComputeShader, UnityEngine.ComputeBuffer, UnityEngine.GraphicsBuffer", "Dispatch, new ComputeBuffer, new GraphicsBuffer, CopyCount", "sdk.cilbox.deny.compute"),
+            ("UnityEngine.Shader", "SetGlobalBuffer, SetGlobalConstantBuffer", "sdk.cilbox.deny.globalBuffer"),
         };
 
         /// <summary>

@@ -20,7 +20,7 @@ using P2PState = Basis.Scripts.Networking.BasisP2PManager.P2PSessionState;
 namespace Basis.BasisUI
 {
     [AutoStaticsCleanup]
-    public partial class IndividualPlayerProvider : BasisMenuActionProvider<BasisMainMenu>
+    public partial class IndividualPlayerProvider : BasisMenuActionProvider<BasisMainMenu>, IBasisMenuSharePlace
     {
         [RuntimeInitializeOnLoadMethod]
         public static void AddToMenu()
@@ -37,6 +37,26 @@ namespace Basis.BasisUI
 
         // ---- Context (who are we editing?) ----
         public static BasisRemotePlayer remotePlayer;
+
+        public string DescribeSharePlace(PanelComponent control, out string label)
+        {
+            label = remotePlayer != null ? remotePlayer.SafeDisplayName : null;
+            return remotePlayer != null ? remotePlayer.UUID : null;
+        }
+
+        public bool OpenSharePlace(string place)
+        {
+            if (!BasisNetworkPlayers.TryGetPlayerByUUID(place, out BasisNetworkPlayer player) || player.Player is not BasisRemotePlayer remote) return false;
+            remotePlayer = remote;
+            BasisMainMenu.OpenWithProvider(this);
+            return true;
+        }
+
+        public RectTransform SharePlaceRoot(string place)
+        {
+            BasisMenuPanel panel = BasisMainMenu.Instance ? BasisMainMenu.Instance.ActiveMenu : null;
+            return panel != null && remotePlayer != null && remotePlayer.UUID == place ? panel.Descriptor.ContentParent : null;
+        }
 
         // ======== Static Highlight Beacon (persists across UI open/close) ========
 

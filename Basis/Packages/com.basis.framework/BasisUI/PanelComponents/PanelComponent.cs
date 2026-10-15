@@ -55,6 +55,8 @@ namespace Basis.BasisUI
 
         public virtual string BoundSettingKey => null;
 
+        public string ShareTitleKey { get; set; }
+
         public virtual bool CanShareSetting => false;
 
         public virtual bool TryGetShareValue(out string type, out string value, out string display)

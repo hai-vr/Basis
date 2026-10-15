@@ -37,25 +37,40 @@ public static partial class BasisContentShareSetting
         }, false);
     }
 
+    public static bool CanOffer(PanelComponent control) =>
+        BasisNetworkConnection.LocalPlayerPeer != null && control != null && control.CanShareSetting && BasisMenuLocation.IsOnOpenPanel(control);
+
+    public static void OfferShare(PanelComponent control)
+    {
+        if (BasisNetworkConnection.LocalPlayerPeer == null) return;
+        if (!TryCapture(control, out ContentShareSetting.Contents location, out ContentShareSetting.Contents value)) return;
+        Offer(location, value);
+    }
+
     public static bool TryCapture(PanelComponent control, out ContentShareSetting.Contents location, out ContentShareSetting.Contents value)
     {
         location = null;
         value = null;
-        if (control == null || !control.CanShareSetting) return false;
-        string key = control.BoundSettingKey;
-        if (!ContentShareSetting.IsValidKey(key) || !SettingsProvider.TryGetSettingLocation(control, out string tab, out string path) || !ContentShareSetting.IsValidKey(tab)) return false;
+        if (control == null || !control.CanShareSetting || !BasisMenuLocation.TryLocate(control, out string menu, out string tab, out string path)) return false;
+        string key = BasisMenuLocation.ControlKey(control);
+        if (!ContentShareSetting.IsValidMenu(menu) || !ContentShareSetting.IsValidKey(tab) || !ContentShareSetting.IsValidKey(key)) return false;
 
-        string title = control.Descriptor != null && !string.IsNullOrEmpty(control.Descriptor.Title) ? control.Descriptor.Title : key;
-        location = new ContentShareSetting.Contents { Tab = tab, Key = key, Title = title, Path = path };
+        string title = BasisMenuLocation.TitleOf(control);
+        if (string.IsNullOrEmpty(title)) title = key;
+        location = new ContentShareSetting.Contents { Menu = menu, Tab = tab, Key = key, Title = title, Path = path };
         if (control.TryGetShareValue(out string type, out string text, out string display))
         {
-            value = new ContentShareSetting.Contents { Tab = tab, Key = key, Title = title, Path = path, ValueType = type, Value = text, ValueText = display };
+            value = new ContentShareSetting.Contents { Menu = menu, Tab = tab, Key = key, Title = title, Path = path, ValueType = type, Value = text, ValueText = display };
         }
         return true;
     }
 
-    public static bool Matches(PanelComponent control, ContentShareSetting.Contents setting) =>
-        control != null && setting != null && control.CanShareSetting && string.Equals(control.BoundSettingKey, setting.Key, StringComparison.Ordinal);
+    public static Predicate<PanelComponent> Matcher(ContentShareSetting.Contents setting)
+    {
+        Predicate<PanelComponent> identity = setting != null ? BasisMenuLocation.Matcher(setting.Key) : null;
+        if (identity == null) return null;
+        return control => control != null && control.CanShareSetting && identity(control);
+    }
 
     public static string DisplayTitle(ContentShareSetting.Contents setting) => string.IsNullOrEmpty(setting.Title) ? setting.Key : setting.Title;
 
@@ -68,7 +83,7 @@ public static partial class BasisContentShareSetting
     public static void Show(ContentShareSetting.Contents setting)
     {
         if (setting == null) return;
-        SettingsProvider.RevealSetting(setting.Tab, control => Matches(control, setting), (control, path) =>
+        BasisMenuLocation.Reveal(setting.Menu, setting.Tab, Matcher(setting), (control, path) =>
         {
             if (setting.HasValue) OfferValue(control, path, setting);
         }, () => ShowMissing(setting));
@@ -78,7 +93,7 @@ public static partial class BasisContentShareSetting
     {
         string sphereId = sphere.SphereNetID;
         bool canRemove = sphere.CanLocalPlayerRemove;
-        bool readable = ContentShareSetting.TryRead(sphere.ContentURL, out ContentShareSetting.Contents setting) && setting.Menu == ContentShareSetting.SettingsMenu;
+        bool readable = ContentShareSetting.TryRead(sphere.ContentURL, out ContentShareSetting.Contents setting);
 
         BasisMainMenu.Open();
         BasisMenuBase<BasisMainMenu> menu = BasisMainMenu.Instance;
@@ -138,7 +153,8 @@ public static partial class BasisContentShareSetting
 
     private static void OfferValue(PanelComponent control, string path, ContentShareSetting.Contents setting)
     {
-        string title = control.Descriptor != null && !string.IsNullOrEmpty(control.Descriptor.Title) ? control.Descriptor.Title : DisplayTitle(setting);
+        string title = BasisMenuLocation.TitleOf(control);
+        if (string.IsNullOrEmpty(title)) title = DisplayTitle(setting);
         if (!control.TryReadShareValue(setting.ValueType, setting.Value, out string shared, out string current, out bool unchanged))
         {
             OpenPrompt(title, BasisLocalization.Get("content.share.setting.value.unusable"), BasisLocalization.Get("ui.ok"), null, _ => { });

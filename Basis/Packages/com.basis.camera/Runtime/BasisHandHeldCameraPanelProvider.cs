@@ -589,6 +589,7 @@ namespace Basis.BasisUI.HandHeldCamera
             // which does not fit the navigation column at all. The no-title variant drops that
             // reservation — the same one the Library panel uses in this container.
             _selector = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, parent);
+            _selector.ShareTitleKey = "camera.selector";
             _selector.Descriptor.SetSize(new Vector2(60, 80));
             FitToNavColumn(_selector.Descriptor, releaseControlSlot: false);
             _selector.OnValueChanged = _ => OnSelectionChanged();

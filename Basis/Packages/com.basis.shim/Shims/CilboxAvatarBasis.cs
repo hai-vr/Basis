@@ -43,7 +43,9 @@ namespace Cilbox
 			"Basis.Shims.BasisHapticsShim", // Only buzzes the player wearing the avatar.
 			"Basis.Shims.BasisHapticHand",
 			"Basis.Shims.BasisSharedRandomShim",
+			"Basis.Shims.BasisComputeShim",
 			"Basis.Shims.BasisAudioRoutingShim", // Only routes the avatar's own sources, to the Avatars group.
+			"Basis.Shims.BasisStatsShim",
 
 			// HVR Vixxy
 			"HVR.Vixxy.HVRVixxyMenuItem", // Restrictive, see method whitelist.

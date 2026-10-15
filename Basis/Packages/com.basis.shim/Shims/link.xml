@@ -305,6 +305,17 @@
         <type fullname="UnityEngine.Graphics" preserve="all"/>
         <type fullname="UnityEngine.Rendering.AsyncGPUReadback" preserve="all"/>
         <type fullname="UnityEngine.Rendering.AsyncGPUReadbackRequest" preserve="all"/>
+        <type fullname="UnityEngine.ComputeShader" preserve="all"/>
+        <type fullname="UnityEngine.ComputeBuffer" preserve="all"/>
+        <type fullname="UnityEngine.ComputeBufferType" preserve="all"/>
+        <type fullname="UnityEngine.ComputeBufferMode" preserve="all"/>
+        <type fullname="UnityEngine.GraphicsBuffer" preserve="all"/>
+        <type fullname="UnityEngine.GraphicsBuffer+Target" preserve="all"/>
+        <type fullname="UnityEngine.GraphicsBuffer+UsageFlags" preserve="all"/>
+        <type fullname="UnityEngine.Rendering.LocalKeyword" preserve="all"/>
+        <type fullname="UnityEngine.Rendering.LocalKeywordSpace" preserve="all"/>
+        <type fullname="UnityEngine.Rendering.ShaderKeywordType" preserve="all"/>
+        <type fullname="UnityEngine.Rendering.RenderTextureSubElement" preserve="all"/>
         <type fullname="UnityEngine.LightShadowCasterMode" preserve="all"/>
         <type fullname="UnityEngine.LightShadows" preserve="all"/>
         <type fullname="UnityEngine.LightType" preserve="all"/>

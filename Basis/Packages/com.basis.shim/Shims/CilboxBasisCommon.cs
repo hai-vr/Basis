@@ -268,6 +268,13 @@ namespace Cilbox
 
 			// Unity types - rendering / materials / mesh
 			"UnityEngine.BoneWeight",
+			"UnityEngine.ComputeBuffer",
+			"UnityEngine.ComputeBufferMode",
+			"UnityEngine.ComputeBufferType",
+			"UnityEngine.ComputeShader",
+			"UnityEngine.GraphicsBuffer",
+			"UnityEngine.GraphicsBuffer+Target",
+			"UnityEngine.GraphicsBuffer+UsageFlags",
 			"UnityEngine.IndexFormat",
 			"UnityEngine.Material",
 			"UnityEngine.MaterialGlobalIlluminationFlags",
@@ -284,8 +291,12 @@ namespace Cilbox
 			"UnityEngine.Rendering.AmbientMode",
 			"UnityEngine.Rendering.IndexFormat",
 			"UnityEngine.Rendering.LightProbeUsage",
+			"UnityEngine.Rendering.LocalKeyword",
+			"UnityEngine.Rendering.LocalKeywordSpace",
 			"UnityEngine.Rendering.OpaqueSortMode",
 			"UnityEngine.Rendering.ReflectionProbeUsage",
+			"UnityEngine.Rendering.RenderTextureSubElement",
+			"UnityEngine.Rendering.ShaderKeywordType",
 			"UnityEngine.Rendering.ShadowCastingMode",
 			"UnityEngine.Rendering.ShadowMapPass",
 			"UnityEngine.Rendering.UVChannelFlags",
@@ -681,6 +692,85 @@ namespace Cilbox
 				"get_version",
 				"IsPlaying",
 				} },
+			{ typeof(UnityEngine.ComputeShader), new HashSet<string>{
+				"FindKernel",
+				"HasKernel",
+				"GetKernelThreadGroupSizes",
+				"IsSupported",
+				"SetBool",
+				"SetInt",
+				"SetInts",
+				"SetFloat",
+				"SetFloats",
+				"SetVector",
+				"SetVectorArray",
+				"SetMatrix",
+				"SetMatrixArray",
+				"SetTexture",
+				"SetBuffer",
+				"SetConstantBuffer",
+				"Dispatch",
+				"EnableKeyword",
+				"DisableKeyword",
+				"IsKeywordEnabled",
+				"SetKeyword",
+				"get_keywordSpace",
+				"get_enabledKeywords",
+				"set_enabledKeywords",
+				"get_shaderKeywords",
+				"set_shaderKeywords",
+				} },
+			{ typeof(UnityEngine.ComputeBuffer), new HashSet<string>{
+				".ctor",
+				"get_count",
+				"get_stride",
+				"IsValid",
+				"Release",
+				"Dispose",
+				"set_name",
+				"SetData",
+				"GetData",
+				"SetCounterValue",
+				"CopyCount",
+				} },
+			{ typeof(UnityEngine.GraphicsBuffer), new HashSet<string>{
+				".ctor",
+				"get_count",
+				"get_stride",
+				"get_target",
+				"get_usageFlags",
+				"IsValid",
+				"Release",
+				"Dispose",
+				"set_name",
+				"SetData",
+				"GetData",
+				"SetCounterValue",
+				"CopyCount",
+				} },
+			{ typeof(UnityEngine.Rendering.LocalKeyword), new HashSet<string>{
+				".ctor",
+				"get_name",
+				"get_type",
+				"get_isValid",
+				"get_isDynamic",
+				"get_isOverridable",
+				"Equals",
+				"GetHashCode",
+				"ToString",
+				"op_Equality",
+				"op_Inequality",
+				} },
+			{ typeof(UnityEngine.Rendering.LocalKeywordSpace), new HashSet<string>{
+				"FindKeyword",
+				"get_keywordCount",
+				"get_keywordNames",
+				"get_keywords",
+				"Equals",
+				"GetHashCode",
+				"op_Equality",
+				"op_Inequality",
+				} },
 		};
 
 		protected abstract HashSet<string> ExtraWhiteListType { get; }
@@ -697,6 +787,13 @@ namespace Cilbox
 		internal int saveWindowWrites;
 		internal double hapticWindowStart;
 		internal int hapticWindowPulses;
+		internal List<(WeakReference<IDisposable> Buffer, long Bytes)> computeBuffers;
+		internal long computeBytes;
+		internal int computeFrame;
+		internal long computeFrameThreads;
+		internal bool computeWarned;
+
+		void OnDestroy() => CilboxCompute.Release(this);
 
 		protected bool Beyond(string item, bool floor)
 		{
@@ -843,6 +940,15 @@ namespace Cilbox
 
 			if (declaringType == typeof(Basis.Shims.BasisHapticsShim) && !CilboxHaptics.IsEntryPoint(name)) return Beyond(MethodItem(declaringType, name), true);
 
+			if (CilboxCompute.IsRedirect(declaringType, name))
+			{
+				if (parametersIn == null) return true;
+				mi = CilboxCompute.Resolve(this, declaringType, name, parametersIn);
+				return mi != null || Beyond(MethodItem(declaringType, name), true);
+			}
+
+			if (declaringType == typeof(Basis.Shims.BasisComputeShim) && !CilboxCompute.IsEntryPoint(name)) return Beyond(MethodItem(declaringType, name), true);
+
 			return CuratedMethodAllowed(declaringType, name) || Beyond(MethodItem(declaringType, name), false);
 		}
 
@@ -883,6 +989,10 @@ namespace Cilbox
 			if (declaringType == typeof(UnityEngine.Animator) && (
 				name == "GetBehaviour" ||
 				name == "GetBehaviours"))
+				return false;
+			if (declaringType == typeof(UnityEngine.Shader) && (
+				name == "SetGlobalBuffer" ||
+				name == "SetGlobalConstantBuffer"))
 				return false;
 
 			bool inCommon = commonMethodWhitelist.TryGetValue(declaringType, out var commonAllowed);

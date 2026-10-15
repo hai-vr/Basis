@@ -312,6 +312,45 @@ namespace Basis.BasisUI
             return false;
         }
 
+        public static bool TryFindKey(string text, out string key)
+        {
+            key = null;
+            if (string.IsNullOrEmpty(text))
+            {
+                return false;
+            }
+
+            if (!_initialized)
+            {
+                Initialize();
+            }
+
+            string same = null;
+            foreach (KeyValuePair<string, string> entry in _current)
+            {
+                if (ReferenceEquals(entry.Value, text))
+                {
+                    key = entry.Key;
+                    return true;
+                }
+                if (string.Equals(entry.Value, text, StringComparison.Ordinal) && (same == null || string.CompareOrdinal(entry.Key, same) < 0)) same = entry.Key;
+            }
+            foreach (KeyValuePair<string, string> entry in _fallback)
+            {
+                if (ReferenceEquals(entry.Value, text))
+                {
+                    key = entry.Key;
+                    return true;
+                }
+                if (!string.Equals(entry.Value, text, StringComparison.Ordinal) || (same != null && string.CompareOrdinal(entry.Key, same) >= 0)) continue;
+                if (_current.TryGetValue(entry.Key, out string translated) && !string.IsNullOrEmpty(translated)) continue;
+                same = entry.Key;
+            }
+
+            key = same;
+            return key != null;
+        }
+
         public static string GetLayerName(int layer)
         {
             string name = LayerMask.LayerToName(layer);

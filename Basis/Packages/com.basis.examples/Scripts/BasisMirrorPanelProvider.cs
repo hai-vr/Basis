@@ -127,6 +127,7 @@ namespace Basis.BasisUI.Mirrors
             _pageContents.Clear();
 
             _selector = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, PickerColumn);
+            _selector.ShareTitleKey = "mirror.selector";
             _selector.Descriptor.SetSize(new Vector2(60, 80));
             _selector.transform.SetSiblingIndex(0);
             FitToNavColumn(_selector.Descriptor, releaseControlSlot: false);

@@ -619,6 +619,40 @@ AsyncGPUReadback.Request(renderTexture, 0, request =>
             new CilboxApiEntry
             {
                 GroupKey = GroupRendering,
+                TitleKey = "sdk.cilbox.api.compute.title",
+                SummaryKey = "sdk.cilbox.api.compute.summary",
+                Requires = new[] { new CilboxApiRequirement("UnityEngine.ComputeShader", "Dispatch"), new CilboxApiRequirement("UnityEngine.ComputeBuffer", ".ctor") },
+                Example =
+@"using Basis.Shims;
+
+public ComputeShader shader;
+ComputeBuffer heights;
+int kernel;
+
+void Start()
+{
+    if (!BasisComputeShim.IsSupported) return;
+    kernel = shader.FindKernel(""Step"");
+    heights = new ComputeBuffer(256 * 256, 4);
+    shader.SetBuffer(kernel, ""Heights"", heights);
+    material.SetBuffer(""Heights"", heights);
+}
+
+void Update()
+{
+    shader.SetFloat(""Time"", Time.time);
+    shader.Dispatch(kernel, 256 / 8, 256 / 8, 1); // [numthreads(8,8,1)]
+}
+
+// Each world, prop and avatar has a memory and a per-frame thread budget:
+// BasisComputeShim.RemainingBytes(this) and RemainingThreads(this). A buffer over
+// the memory budget throws; a Dispatch over this frame's budget is skipped with a
+// warning. Basis frees every buffer when the content unloads.
+// Not available: DispatchIndirect, SetTextureFromGlobal, Shader.SetGlobalBuffer.",
+            },
+            new CilboxApiEntry
+            {
+                GroupKey = GroupRendering,
                 TitleKey = "sdk.cilbox.api.light.title",
                 SummaryKey = "sdk.cilbox.api.light.summary",
                 Requires = new[] { new CilboxApiRequirement("UnityEngine.Light", "set_intensity") },
@@ -671,6 +705,39 @@ bool gi = BasisGraphicsSettingsShim.GetFlag(""useglobalillumination"", false);
 void Start() { GetComponent<BasisGraphicsSettingsEventShim>(); }
 
 void OnGraphicsSettingsChanged(string qualityLevel, int qualityTier) { }",
+            },
+            new CilboxApiEntry
+            {
+                GroupKey = GroupRendering,
+                TitleKey = "sdk.cilbox.api.stats.title",
+                SummaryKey = "sdk.cilbox.api.stats.summary",
+                Requires = new[] { new CilboxApiRequirement("Basis.Shims.BasisStatsShim", "get_FramesPerSecond") },
+                Example =
+@"using Basis.Shims;
+
+// The frame rate the player's own menu shows. Basis measures only while a
+// script keeps reading, and stops a few seconds after the last read, so poll
+// it from Update or a timer rather than once in Start.
+float fps = BasisStatsShim.FramesPerSecond;
+float ms = BasisStatsShim.FrameTimeMs;
+
+// The refresh rate or frame cap the client is paced to, 0 when uncapped.
+float target = BasisStatsShim.TargetFramesPerSecond;
+bool struggling = target > 0f && fps < target * 0.8f;
+
+// Which side is holding the frame back, so a world cuts the right thing.
+int bottleneck = BasisStatsShim.Bottleneck;
+if (bottleneck == BasisStatsShim.BottleneckGpu) mirror.SetActive(false);
+if (bottleneck == BasisStatsShim.BottleneckCpu) crowd.SetActive(false);
+float cpuMs = BasisStatsShim.CpuFrameTimeMs;
+float gpuMs = BasisStatsShim.GpuFrameTimeMs;
+
+// The connection. Round trip and packet age are -1 while not connected,
+// the player limit is 0 when the server sets none.
+bool online = BasisStatsShim.IsConnected;
+int rtt = BasisStatsShim.RoundTripTimeMs;
+bool stalled = BasisStatsShim.SecondsSinceLastPacket > 2f;
+int limit = BasisStatsShim.PlayerLimit;",
             },
             new CilboxApiEntry
             {

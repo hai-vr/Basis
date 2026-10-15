@@ -20,7 +20,7 @@ using UnityEngine.UI;
 namespace Basis.BasisUI
 {
     [AutoStaticsCleanup]
-    public partial class ServersProvider : BasisMenuActionProvider<BasisMainMenu>
+    public partial class ServersProvider : BasisMenuActionProvider<BasisMainMenu>, IBasisMenuSharePlace
     {
         private static ServersProvider _instance;
         public static readonly List<Action<RectTransform>> HostSettingsBuilders = new();
@@ -120,6 +120,36 @@ namespace Basis.BasisUI
         private PanelButton _searchButton;
         private DialogBox<bool> _hostEditorDialog;
         private DialogBox<bool> _serverEditorDialog;
+        private const string HostSharePlace = "host";
+        private const string ServerSharePlace = "server";
+
+        public string DescribeSharePlace(PanelComponent control, out string label)
+        {
+            label = null;
+            DialogBox<bool> dialog = IsInside(_hostEditorDialog, control) ? _hostEditorDialog : IsInside(_serverEditorDialog, control) ? _serverEditorDialog : null;
+            if (dialog == null) return null;
+            label = dialog.Descriptor.Title;
+            return dialog == _hostEditorDialog ? HostSharePlace : ServerSharePlace;
+        }
+
+        public bool OpenSharePlace(string place)
+        {
+            if (place != HostSharePlace && place != ServerSharePlace) return false;
+            BasisMainMenu.OpenWithProvider(this);
+            if (_panel == null) return false;
+            if (place == HostSharePlace) _ = ShowHostEditorAsync();
+            else ShowEditor(null);
+            return true;
+        }
+
+        public RectTransform SharePlaceRoot(string place)
+        {
+            DialogBox<bool> dialog = place == HostSharePlace ? _hostEditorDialog : place == ServerSharePlace ? _serverEditorDialog : null;
+            return dialog != null && dialog.Descriptor != null ? dialog.Descriptor.ContentParent : null;
+        }
+
+        private static bool IsInside(DialogBox<bool> dialog, PanelComponent control) => dialog != null && dialog.Descriptor != null && control != null && control.transform.IsChildOf(dialog.Descriptor.transform);
+
         private DialogBox<bool> _searchDialog;
         private DialogBox<string> _passwordDialog;
         private PanelDropdown _hostStackDropdown;

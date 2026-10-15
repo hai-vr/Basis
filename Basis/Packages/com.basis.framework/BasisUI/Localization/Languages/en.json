@@ -12611,6 +12611,10 @@
       "value": "Spawn or load a prop/scene that contains a Basis Media Player."
     },
     {
+      "key": "mediaPlayer.selector",
+      "value": "Media Player"
+    },
+    {
       "key": "mediaPlayer.playback",
       "value": "Playback"
     },
@@ -18673,6 +18677,10 @@
       "value": "Mirror"
     },
     {
+      "key": "mirror.selector",
+      "value": "Mirror"
+    },
+    {
       "key": "mirror.status.effectiveResolution",
       "value": "Rendering at {0} x {1}"
     },
@@ -19417,6 +19425,10 @@
       "value": "Name"
     },
     {
+      "key": "library.sortMode",
+      "value": "Sort By"
+    },
+    {
       "key": "library.sort.dateOldestToNewest",
       "value": "Oldest First"
     },
@@ -19427,6 +19439,10 @@
     {
       "key": "library.filter.all",
       "value": "All"
+    },
+    {
+      "key": "library.filterMode",
+      "value": "Filter"
     },
     {
       "key": "library.filter.embedded",
@@ -21634,11 +21650,11 @@
     },
     {
       "key": "content.share.setting.location.question",
-      "value": "Open your Settings at this setting?"
+      "value": "Open this setting in your menu?"
     },
     {
       "key": "content.share.setting.value.question",
-      "value": "Open your Settings at this setting? You can choose to use their value there."
+      "value": "Open this setting in your menu? You can choose to use their value there."
     },
     {
       "key": "content.share.setting.unreadable",
@@ -21650,7 +21666,7 @@
     },
     {
       "key": "content.share.setting.missing",
-      "value": "{0} is not in your Settings. It may be on a tab you can't see, only on another device, or from a different version of Basis."
+      "value": "{0} could not be found here. It may be about a player or item that isn't here, on a panel or tab you can't see right now, only on another device, or from a different version of Basis."
     },
     {
       "key": "content.share.setting.apply.body",

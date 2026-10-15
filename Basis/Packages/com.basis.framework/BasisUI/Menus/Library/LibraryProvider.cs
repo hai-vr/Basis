@@ -9,6 +9,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
@@ -23,7 +25,7 @@ using static SerializableBasis;
 namespace Basis.BasisUI
 {
     [AutoStaticsCleanup]
-    public partial class LibraryProvider : BasisMenuActionProvider<BasisMainMenu>
+    public partial class LibraryProvider : BasisMenuActionProvider<BasisMainMenu>, IBasisMenuSharePlace
     {
         #region Provider Setup
         [RuntimeInitializeOnLoadMethod]
@@ -200,6 +202,7 @@ namespace Basis.BasisUI
 
             // create a sorting dropdown in the tab group extras area
             dateSorting = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, tabGroup.ExtrasContainer);
+            dateSorting.ShareTitleKey = "library.sortMode";
             string[] dateSortNames = Enum.GetNames(typeof(LibraryDateSortMode));
 
             dateSorting.Descriptor.SetSize(new Vector2(60, 80));
@@ -220,6 +223,7 @@ namespace Basis.BasisUI
 
             // create a sorting dropdown in the tab group extras area
             itemTypeSorting = PanelDropdown.CreateNew(PanelDropdown.DropdownStyles.EntryNoLabel, tabGroup.ExtrasContainer);
+            itemTypeSorting.ShareTitleKey = "library.filterMode";
             string[] itemTypeNames = Enum.GetNames(typeof(LibraryItemTypeFilter));
 
             itemTypeSorting.Descriptor.SetSize(new Vector2(60, 80));
@@ -1191,6 +1195,44 @@ namespace Basis.BasisUI
         }
 
         private static BasisDataStoreItemKeys.ItemKey _activeItem;
+        private static PanelElementDescriptor _itemOverlay;
+        private static string _itemOverlayPlace;
+        private static string _itemOverlayLabel;
+
+        public string DescribeSharePlace(PanelComponent control, out string label)
+        {
+            label = null;
+            if (_itemOverlay == null || control == null || !control.transform.IsChildOf(_itemOverlay.transform)) return null;
+            label = _itemOverlayLabel;
+            return _itemOverlayPlace;
+        }
+
+        public bool OpenSharePlace(string place)
+        {
+            List<BasisDataStoreItemKeys.ItemKey> items = LibraryItemsForFolders();
+            for (int Index = 0; Index < items.Count; Index++)
+            {
+                if (items[Index] == null || SharePlaceOf(items[Index]) != place) continue;
+                BasisMainMenu.OpenWithProvider(this);
+                if (!PanelAlive) return false;
+                ShowItemOverlay(items[Index]);
+                return true;
+            }
+            return false;
+        }
+
+        public RectTransform SharePlaceRoot(string place) => _itemOverlay != null && _itemOverlayPlace == place ? _itemOverlay.ContentParent : null;
+
+        private static string SharePlaceOf(BasisDataStoreItemKeys.ItemKey item)
+        {
+            using (SHA256 sha = SHA256.Create())
+            {
+                byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(item.Url ?? string.Empty));
+                StringBuilder text = new StringBuilder(32);
+                for (int Index = 0; Index < 16; Index++) text.Append(hash[Index].ToString("x2", CultureInfo.InvariantCulture));
+                return text.ToString();
+            }
+        }
 
         private static string ConvertItemKeyToAddressableSprite(BasisDataStoreItemKeys.ItemKey item)
         {
@@ -1309,6 +1351,9 @@ namespace Basis.BasisUI
                 $"{(description.AssetBundleDescription.Length > 0 ? description.AssetBundleDescription : BasisLocalization.Get("library.noDescription"))}",
                 ConvertItemKeyToAddressableSprite(item));
             if (onClosed != null) NotifyWhenClosed(existingItemDialog, onClosed);
+            _itemOverlay = existingItemDialog.Descriptor;
+            _itemOverlayPlace = SharePlaceOf(item);
+            _itemOverlayLabel = description.AssetBundleName;
 
             // only items can be pinned as props
             // this has to be here to ensure correct placement
