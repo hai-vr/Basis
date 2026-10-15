@@ -683,15 +683,13 @@ namespace Basis.MediaPipe
             BasisLocalBoneControl chest = BasisLocalBoneDriver.ChestControl;
             if (hips == null || chest == null) return false;
 
-            Quaternion hipsRest = hips.TposeLocal.rotation;
-            Quaternion chestRest = chest.TposeLocal.rotation;
-            if (!IsUsable(hipsRest) || !IsUsable(chestRest)) return false;
-
             Basis.Scripts.Common.BasisCalibratedCoords hipsNow = hips.OutGoingData;
-            Quaternion body = hipsNow.rotation * Quaternion.Inverse(hipsRest);
+            Quaternion body = hipsNow.rotation;
+            if (!IsUsable(body)) return false;
+            body.Normalize();
 
-            position = hipsNow.position + body * (chest.TposeLocal.position - hips.TposeLocal.position + torsoShift);
-            rotation = body * torsoOffset * chestRest;
+            position = hipsNow.position + body * (torsoOffset * (chest.TposeLocalScaled.position - hips.TposeLocalScaled.position) + torsoShift);
+            rotation = body * torsoOffset;
             return true;
         }
 

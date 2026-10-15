@@ -87,6 +87,16 @@ namespace Basis.Shims
 			return null;
 		}
 
+		/// <summary>The player with this UUID, or null. UUIDs stay the same across visits and servers.</summary>
+		public static IBasisPlayer GetByUUID( string uuid )
+		{
+			if( string.IsNullOrEmpty( uuid ) ) return null;
+			Rebuild();
+			for( int i = 0; i < cached.Length; i++ )
+				if( string.Equals( cached[i].UUID, uuid, StringComparison.Ordinal ) ) return cached[i];
+			return null;
+		}
+
 		/// <summary>How many players reported the given platform string, compared case-insensitively.</summary>
 		public static int CountOnPlatform( string platform )
 		{

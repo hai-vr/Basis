@@ -1211,13 +1211,6 @@ namespace Basis.BasisUI
         // ---------------- NETWORKING ----------------
         public static BasisSettingsBinding<bool> AutoConnect = new("autoconnect", new BasisPlatformDefault<bool>(false));
 
-        // Remote-player jitter buffer target depth (packets to stay behind by).
-        // Higher = smoother under network jitter, more latency. Default 2 (~100ms at 50ms sync).
-        // Only takes effect when NetworkJitterBufferOverride is on — otherwise the default
-        // adaptive depth (2/3/4) is used.
-        public static BasisSettingsBinding<bool> NetworkJitterBufferOverride = new("networkjitterbufferoverride", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<float> NetworkJitterBufferDepth = new("networkjitterbufferdepth", new BasisPlatformDefault<float>(2f));
-
         // ---------------- DEVICE SWAP MODE ----------------
         /// <summary>
         /// Controls how the system handles switching between VR and Desktop modes.
@@ -2642,8 +2635,6 @@ namespace Basis.BasisUI
 
             // Networking
             AutoConnect.LoadBindingValue();
-            NetworkJitterBufferOverride.LoadBindingValue();
-            NetworkJitterBufferDepth.LoadBindingValue();
 
             // Device Swap Mode
             SwapMode.LoadBindingValue();

@@ -227,6 +227,10 @@ namespace Basis.BasisUI
             SettingsProviderDeviceOverrides.Build(tabRoot);
             SettingsProviderDeviceOffsets.Build(tabRoot);
             BuildTrackingCalibrationSection(tabRoot);
+            if (BasisSettingsDefaults.ShowDeveloperTab.RawValue)
+            {
+                BuildTrackingDiagnosticsSection(tabRoot);
+            }
 
             // Webcam / external tracking sections injected by feature packages
             // (e.g. MediaPipe). Built above the page reset so the reset stays last.
@@ -1000,6 +1004,41 @@ namespace Basis.BasisUI
                     PanelElementDescriptor.RebuildLayoutChain(box.rectTransform, container);
                 }
             });
+        }
+
+        // Face / eye builders are owned by the comms package (HVR types the framework can't see).
+        private static void BuildTrackingDiagnosticsSection(RectTransform container)
+        {
+            PanelSectionToggle section = null;
+            section = PanelSectionToggleHelpers.CreateLazyBoxedSection(container,
+                BasisLocalization.Get("settings.developer.group.trackingDiagnostics"), () =>
+                {
+                    PanelElementDescriptor faceGroup = SettingsProvider.CreateDiagnosticSubGroup(container,
+                        BasisLocalization.Get("settings.developer.debugFaceTracking"));
+                    if (SettingsProvider.FaceTrackingDebugBuilder == null)
+                    {
+                        faceGroup.SetDescription(BasisLocalization.Get("settings.developer.debugFaceTracking.unavailable"));
+                    }
+                    else
+                    {
+                        SettingsProvider.FaceTrackingDebugBuilder(faceGroup.ContentParent);
+                    }
+
+                    PanelElementDescriptor eyeGroup = SettingsProvider.CreateDiagnosticSubGroup(container,
+                        BasisLocalization.Get("settings.developer.debugEyeTracking"));
+                    if (SettingsProvider.EyeTrackingDebugBuilder == null)
+                    {
+                        eyeGroup.SetDescription(BasisLocalization.Get("settings.developer.debugEyeTracking.unavailable"));
+                    }
+                    else
+                    {
+                        SettingsProvider.EyeTrackingDebugBuilder(eyeGroup.ContentParent);
+                    }
+
+                    PanelElementDescriptor trackerRoles = SettingsProvider.CreateDiagnosticSubGroup(container,
+                        BasisLocalization.Get("settings.developer.assignedTrackers"));
+                    SettingsProviderAvatarStats.PopulateTrackerRoles(trackerRoles);
+                }, false, _ => PanelSectionToggleHelpers.RebuildSectionLayout(section, container));
         }
 
         private static void ResetTrackerSettingsDefaults()

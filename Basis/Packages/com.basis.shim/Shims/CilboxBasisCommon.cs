@@ -514,8 +514,9 @@ namespace Cilbox
 			//   get_AvatarTransform/AvatarAnimatorTransform/PlayerSelf/Transform/AvatarParent — a
 			//     Transform is default-allow once handed over, so these are write handles.
 			//   get_GameObject — SetActive is allowed on GameObject; that hides or breaks a player.
-			//   get_UUID — stable across instances, so it lets any world fingerprint and correlate
-			//     users between visits. PlayerId covers per-session identity.
+			// get_UUID is allowed by the maintainer's call (2026-10-15): it is stable across instances,
+			// so content can recognise a returning player. Web requests that could carry it off-device
+			// are consent- and per-site-gated in BasisWebRequestShim.
 			//   add/remove_OnAvatarSwitched — an interpreted delegate cannot be unsubscribed, and
 			//     this event outlives the script.
 			//   get_AudioReceived — hands back a Delegate.
@@ -526,6 +527,7 @@ namespace Cilbox
 				"get_PlayerPlatform",
 				"get_DisplayName",
 				"get_SafeDisplayName",
+				"get_UUID",
 				"get_IsConsideredFallBackAvatar",
 				"get_AvatarLoadMode",
 				"get_FaceIsVisible",
@@ -546,6 +548,11 @@ namespace Cilbox
 				nameof(Basis.SafeUtil.GetExecutionBudgetUs),
 				nameof(Basis.SafeUtil.GetRemainingExecutionBudgetUs),
 				nameof(Basis.SafeUtil.GetLastFrameExecutionUs),
+				nameof(Basis.SafeUtil.GetContentGroupId),
+				nameof(Basis.SafeUtil.GetContentNetworkId),
+				nameof(Basis.SafeUtil.GetContentName),
+				nameof(Basis.SafeUtil.GetContentAuthor),
+				nameof(Basis.SafeUtil.GetContentTags),
 				} },
 			{ typeof(BasisContent), new HashSet<string>{ "SpawnedByLocalPlayer" } },
 			// Read-only identity. AssignContentIdentifier and get_ContentInformation are held back:
@@ -688,6 +695,8 @@ namespace Cilbox
 		internal HashSet<string> saveStores;
 		internal double saveWindowStart;
 		internal int saveWindowWrites;
+		internal double hapticWindowStart;
+		internal int hapticWindowPulses;
 
 		protected bool Beyond(string item, bool floor)
 		{
@@ -723,6 +732,7 @@ namespace Cilbox
 			"BasisLinkSafety",
 			"BasisContentShareText",
 			"Basis.BasisUI.BasisExternalLinks",
+			"Basis.BasisUI.BasisWebRequests",
 			"Basis.Scripts.BasisSdk.Interactions.BasisUserActivation",
 		};
 
@@ -822,6 +832,16 @@ namespace Cilbox
 				if (!CilboxServerStorage.IsEntryPoint(name)) return Beyond(MethodItem(declaringType, name), true);
 				if (CilboxServerStorage.NeedsConsent(name)) Beyond(MethodItem(declaringType, name), false);
 			}
+
+			// Same shape as server storage: only the public entry points resolve, and the
+			// request methods record a consent item that the shim re-checks on every call.
+			if (declaringType == typeof(Basis.Shims.BasisWebRequestShim))
+			{
+				if (this is CilboxAvatarBasis || !CilboxWebRequests.IsEntryPoint(name)) return Beyond(MethodItem(declaringType, name), true);
+				if (CilboxWebRequests.NeedsConsent(name)) Beyond(MethodItem(declaringType, name), false);
+			}
+
+			if (declaringType == typeof(Basis.Shims.BasisHapticsShim) && !CilboxHaptics.IsEntryPoint(name)) return Beyond(MethodItem(declaringType, name), true);
 
 			return CuratedMethodAllowed(declaringType, name) || Beyond(MethodItem(declaringType, name), false);
 		}

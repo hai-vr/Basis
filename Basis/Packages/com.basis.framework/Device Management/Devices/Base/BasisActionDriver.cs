@@ -33,7 +33,12 @@ public static partial class BasisActionDriver
     /// <summary>
     /// Full path to the current-mode bindings file.
     /// </summary>
-    public static string SavePath => Path.Combine(Application.persistentDataPath, FolderPath, BasisDeviceManagement.StaticCurrentMode, FileName);
+    public static string SavePath => SavePathFor(BasisDeviceManagement.StaticCurrentMode);
+
+    /// <summary>
+    /// Full path to the bindings file of <paramref name="mode"/>.
+    /// </summary>
+    public static string SavePathFor(string mode) => Path.Combine(Application.persistentDataPath, FolderPath, mode, FileName);
 
     /// <summary>
     /// True if a bindings file exists on disk.
@@ -266,25 +271,7 @@ public static partial class BasisActionDriver
         s_RoleToCompiled.Clear();
 
         s_SuppressRebuild = true;
-
-        Bind(ActionId.SetMovementSpeedMultiplierFromPrimary2DAxis, BasisBoneTrackedRole.LeftHand);
-        Bind(ActionId.SetMovementVectorFromPrimary2DAxis, BasisBoneTrackedRole.LeftHand);
-        Bind(ActionId.TickMovementSpeed, BasisBoneTrackedRole.LeftHand);
-        Bind(ActionId.ToggleHamburgerOnSecondaryRelease, BasisBoneTrackedRole.LeftHand);
-
-        Bind(ActionId.RotateFromPrimary2DAxis, BasisBoneTrackedRole.RightHand);
-        Bind(ActionId.JumpOnPrimaryButton, BasisBoneTrackedRole.RightHand);
-        Bind(ActionId.DescendOnGripButton, BasisBoneTrackedRole.RightHand);
-
-        if (BasisDeviceManagement.IsCurrentModeVR() == false)
-        {
-            Bind(ActionId.ToggleMicOnPrimaryReleaseIfNoHover, BasisBoneTrackedRole.CenterEye);
-        }
-        else
-        {
-            Bind(ActionId.ToggleMicOnPrimaryReleaseIfNoHover, BasisBoneTrackedRole.LeftHand);
-        }
-
+        BindDefaults(BasisDeviceManagement.StaticCurrentMode, Bind);
         s_SuppressRebuild = false;
         RebuildAllCompiled();
 
@@ -296,6 +283,115 @@ public static partial class BasisActionDriver
         {
             await SaveFromDriver();
         }
+    }
+
+    /// <summary>
+    /// The default bindings of <paramref name="mode"/>, handed to <paramref name="bind"/> one pair at a time.
+    /// </summary>
+    private static void BindDefaults(string mode, Action<ActionId, BasisBoneTrackedRole> bind)
+    {
+        bind(ActionId.SetMovementSpeedMultiplierFromPrimary2DAxis, BasisBoneTrackedRole.LeftHand);
+        bind(ActionId.SetMovementVectorFromPrimary2DAxis, BasisBoneTrackedRole.LeftHand);
+        bind(ActionId.TickMovementSpeed, BasisBoneTrackedRole.LeftHand);
+        bind(ActionId.ToggleHamburgerOnSecondaryRelease, BasisBoneTrackedRole.LeftHand);
+
+        bind(ActionId.RotateFromPrimary2DAxis, BasisBoneTrackedRole.RightHand);
+        bind(ActionId.JumpOnPrimaryButton, BasisBoneTrackedRole.RightHand);
+        bind(ActionId.DescendOnGripButton, BasisBoneTrackedRole.RightHand);
+
+        bind(ActionId.ToggleMicOnPrimaryReleaseIfNoHover,
+            BasisDeviceManagement.IsVRMode(mode) ? BasisBoneTrackedRole.LeftHand : BasisBoneTrackedRole.CenterEye);
+    }
+
+    /// <summary>
+    /// Reads the bindings of <paramref name="mode"/> without touching the live driver, built the
+    /// same way <see cref="LoadBindings"/> builds them (defaults, then the saved file on top). For
+    /// the current mode this is a copy of the live bindings. Used by the settings page to edit a
+    /// mode the player is not in.
+    /// </summary>
+    public static async Task<Dictionary<ActionId, HashSet<BasisBoneTrackedRole>>> ReadBindingsForMode(string mode)
+    {
+        var map = new Dictionary<ActionId, HashSet<BasisBoneTrackedRole>>();
+        void Add(ActionId action, BasisBoneTrackedRole role)
+        {
+            if (!map.TryGetValue(action, out var roles))
+            {
+                roles = new HashSet<BasisBoneTrackedRole>();
+                map[action] = roles;
+            }
+            roles.Add(role);
+        }
+
+        if (string.Equals(mode, BasisDeviceManagement.StaticCurrentMode, StringComparison.Ordinal))
+        {
+            foreach (var pair in s_ActionToRoles)
+            {
+                foreach (var role in pair.Value)
+                {
+                    Add(pair.Key, role);
+                }
+            }
+            return map;
+        }
+
+        BindDefaults(mode, Add);
+
+        string path = SavePathFor(mode);
+        if (!File.Exists(path))
+        {
+            return map;
+        }
+
+        try
+        {
+            string json = await BasisFiles.ReadAllTextAsync(path);
+            if (string.IsNullOrEmpty(json))
+            {
+                return map;
+            }
+
+            BindingWrapper wrapper = JsonUtility.FromJson<BindingWrapper>(json);
+            if (wrapper.records != null)
+            {
+                for (int Index = 0; Index < wrapper.records.Length; Index++)
+                {
+                    var rec = wrapper.records[Index];
+                    if (EnumTryParse(rec.action, out ActionId action) && EnumTryParse(rec.role, out BasisBoneTrackedRole role))
+                    {
+                        Add(action, role);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            BasisDebug.LogError($"Bindings Failed to read/parse bindings file for {mode}: {ex.Message}", BasisDebug.LogTag.Input);
+        }
+
+        return map;
+    }
+
+    /// <summary>
+    /// Saves <paramref name="bindings"/> as the bindings file of <paramref name="mode"/>. The live
+    /// driver is not touched, so this is for a mode the player is not in; the current mode is
+    /// edited through <see cref="Bind"/>/<see cref="Unbind"/> and <see cref="SaveFromDriver"/>.
+    /// </summary>
+    public static async Task WriteBindingsForMode(string mode, Dictionary<ActionId, HashSet<BasisBoneTrackedRole>> bindings)
+    {
+        List<BasisBindingRecord> list = new List<BasisBindingRecord>(32);
+        foreach (var pair in bindings)
+        {
+            if (pair.Key == ActionId.Count)
+            {
+                continue;
+            }
+            foreach (var role in pair.Value)
+            {
+                list.Add(new BasisBindingRecord { action = pair.Key.ToString(), role = role.ToString() });
+            }
+        }
+
+        await WriteWrapperToDisk(new BindingWrapper { records = list.ToArray() }, SavePathFor(mode));
     }
 
     /// <summary>
@@ -362,8 +458,28 @@ public static partial class BasisActionDriver
         }
         s_RoleDispatchFrame[role] = frame;
 
-        // Combine the current/last state of every device holding this role into one aggregate.
-        var devices = BasisDeviceManagement.Instance.AllInputDevices;
+        if (!TryGetRoleState(role, s_AggCurrent, s_AggLast))
+        {
+            return;
+        }
+
+        UpdatePlayerControl(role, ref s_AggCurrent, ref s_AggLast);
+    }
+
+    /// <summary>
+    /// Fills <paramref name="current"/> and <paramref name="last"/> with the combined state of every
+    /// device holding <paramref name="role"/>, the same merge the role dispatch acts on, so a reader
+    /// sees exactly the input that drives the player. False when no device holds the role.
+    /// </summary>
+    public static bool TryGetRoleState(BasisBoneTrackedRole role, BasisInputState current, BasisInputState last)
+    {
+        BasisDeviceManagement management = BasisDeviceManagement.Instance;
+        if (management == null || current == null || last == null)
+        {
+            return false;
+        }
+
+        var devices = management.AllInputDevices;
         int count = devices.Count;
         bool seeded = false;
         for (int Index = 0; Index < count; Index++)
@@ -375,23 +491,17 @@ public static partial class BasisActionDriver
             }
             if (!seeded)
             {
-                device.CurrentInputState.CopyTo(s_AggCurrent);
-                device.LastInputState.CopyTo(s_AggLast);
+                device.CurrentInputState.CopyTo(current);
+                device.LastInputState.CopyTo(last);
                 seeded = true;
             }
             else
             {
-                s_AggCurrent.MergeFrom(device.CurrentInputState);
-                s_AggLast.MergeFrom(device.LastInputState);
+                current.MergeFrom(device.CurrentInputState);
+                last.MergeFrom(device.LastInputState);
             }
         }
-
-        if (!seeded)
-        {
-            return;
-        }
-
-        UpdatePlayerControl(role, ref s_AggCurrent, ref s_AggLast);
+        return seeded;
     }
 
     public static async void ResetBindingsToDefaultsAsyncIgnored()
@@ -697,7 +807,7 @@ public static partial class BasisActionDriver
         }
 
         BindingWrapper wrapper = new BindingWrapper { records = list.ToArray() };
-        await WriteWrapperToDisk(wrapper);
+        await WriteWrapperToDisk(wrapper, SavePath);
     }
 
     /// <summary>
@@ -755,22 +865,23 @@ public static partial class BasisActionDriver
     /// Writes the wrapper to disk as JSON.
     /// </summary>
     /// <param name="wrapper">The container of binding records.</param>
-    private static async Task WriteWrapperToDisk(BindingWrapper wrapper)
+    /// <param name="path">The bindings file to write.</param>
+    private static async Task WriteWrapperToDisk(BindingWrapper wrapper, string path)
     {
         string json = JsonUtility.ToJson(wrapper, prettyPrint: true);
 
         try
         {
-            string dir = Path.GetDirectoryName(SavePath);
+            string dir = Path.GetDirectoryName(path);
 
             if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             {
                 Directory.CreateDirectory(dir);
             }
-            await BasisFiles.WriteAllTextAsync(SavePath, json);
+            await BasisFiles.WriteAllTextAsync(path, json);
 
 #if UNITY_EDITOR
-            BasisDebug.Log($"Bindings Saved {wrapper.records?.Length ?? 0} bindings to {SavePath}", BasisDebug.LogTag.Input);
+            BasisDebug.Log($"Bindings Saved {wrapper.records?.Length ?? 0} bindings to {path}", BasisDebug.LogTag.Input);
 #endif
         }
         catch (Exception ex)
