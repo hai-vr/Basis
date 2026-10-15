@@ -75,6 +75,7 @@ namespace Basis.Tests.Camera
         public void TearDown()
         {
             RenderPipelineManager.beginCameraRendering -= Enqueue;
+            if (_camera != null) _camera.targetTexture = null;
             _pass?.Release();
             _pass = null;
             foreach (Object owned in _owned)
