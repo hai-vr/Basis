@@ -934,6 +934,7 @@ namespace Basis.Scripts.Drivers
             facts.upright = BasisLocalPlayspaceMover.FlipUpSign > 0f;
             facts.hipsTracked = fbt && BasisLocalBoneDriver.HipsControl.HasTracked == BasisHasTracked.HasTracker;
             facts.chestTracked = fbt && BasisLocalBoneDriver.ChestControl.HasTracked == BasisHasTracked.HasTracker;
+            facts.chestFollowsBody = facts.chestTracked && BasisLocalBoneDriver.ChestControl.TrackerFollowsBody;
             facts.leftFootTracked = leftFoot;
             facts.rightFootTracked = rightFoot;
             facts.leftLegTracked = leftFoot || (fbt && BasisLocalBoneDriver.LeftUpperLegControl.HasTracked == BasisHasTracked.HasTracker);
@@ -1064,7 +1065,7 @@ namespace Basis.Scripts.Drivers
             framePlayerUpDirection = framePlayerUpScale > 1e-6f ? playerUpScaled / framePlayerUpScale : Vector3.up;
             if (trackersDisabled)
             {
-                facts.hipsTracked = facts.chestTracked = facts.leftLegTracked = facts.rightLegTracked = facts.leftFootTracked = facts.rightFootTracked = facts.leftKneeTracked = facts.rightKneeTracked = false;
+                facts.hipsTracked = facts.chestTracked = facts.chestFollowsBody = facts.leftLegTracked = facts.rightLegTracked = facts.leftFootTracked = facts.rightFootTracked = facts.leftKneeTracked = facts.rightKneeTracked = false;
                 facts.leftElbowTracked = facts.rightElbowTracked = facts.leftShoulderTracked = facts.rightShoulderTracked = facts.leftToeTracked = facts.rightToeTracked = false;
             }
             facts.leftSimFootRotation = BasisEeriePlanner.footRotationFromSim && facts.footSimReady && TryFootTargetRotation(footDriver.LeftFootRotation, data.offsetRotationLeftFoot, out frameLeftSimFootRotation);

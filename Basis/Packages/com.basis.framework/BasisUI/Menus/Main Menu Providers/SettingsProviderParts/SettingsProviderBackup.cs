@@ -6,7 +6,7 @@ using Basis.Scripts.Networking;
 using UnityEngine;
 
 /// <summary>
-/// General-tab "Backup &amp; Restore" section. Creating an archive is offered everywhere; restoring
+/// Downloads &amp; URLs tab "Backup &amp; Restore" section. Creating an archive is offered everywhere; restoring
 /// is Windows/Linux only (<see cref="BasisUserDataBackup.RestoreSupported"/>) and lists the archives
 /// found in the backups folder, plus a field for a path copied in from elsewhere. Backup and Restore
 /// are each a lazy sub-section nested inside the outer Backup &amp; Restore toggle and start closed:

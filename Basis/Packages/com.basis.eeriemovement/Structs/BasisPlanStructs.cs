@@ -2,7 +2,7 @@ namespace Basis.IK
 {
     public struct BasisEerieFrameFacts
     {
-        public bool hipsTracked, chestTracked, prone, seated, upright, moving, footIKSetting, trackerBendNormal, footSimReady;
+        public bool hipsTracked, chestTracked, chestFollowsBody, prone, seated, upright, moving, footIKSetting, trackerBendNormal, footSimReady;
         public bool leftLegTracked, rightLegTracked, leftFootTracked, rightFootTracked, leftKneeTracked, rightKneeTracked;
         public bool leftElbowTracked, rightElbowTracked, leftShoulderTracked, rightShoulderTracked, leftToeTracked, rightToeTracked;
         public bool leftSimFootRotation, rightSimFootRotation, leftToeBend, rightToeBend, leftElbowRoll, rightElbowRoll, leftKneeRoll, rightKneeRoll;

@@ -81,7 +81,7 @@ namespace Basis.BasisUI
             group.OnInstanceReleased += () => Detach(group);
 
             PanelSectionToggleHelpers.FinalizeCollapsibleGroup(toggle, group, false,
-                _ => descriptor.ForceRebuild());
+                _ => PanelElementDescriptor.RebuildLayoutChain(group.ContentParent, container));
         }
 
         private static void Attach(
