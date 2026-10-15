@@ -104,6 +104,78 @@ fn faststart_demuxes_the_full_fixture() {
     assert_eq!(s.first_audio_pts, Some(MediaTime::from_micros(-21333)));
 }
 
+/// A `covr` item whose `data` box has type 14 (PNG), as ffmpeg writes an
+/// attached picture, neither stops the file opening nor costs its tracks,
+/// and the picture comes through as the art.
+#[test]
+fn a_png_cover_opens_and_is_the_art() {
+    let mut demux = open("h264-aac-png-cover.mp4");
+    let art = demux.artwork().expect("the cover is read");
+    assert_eq!(art.mime, "image/png");
+    assert!(art.data.starts_with(b"\x89PNG\r\n\x1a\n"), "the stored PNG");
+
+    let s = drain(&mut demux);
+    assert_eq!((s.video_formats, s.audio_formats), (1, 1));
+    // The ffprobe-verified packet counts for this fixture.
+    assert_eq!(s.video_aus, 60);
+    assert_eq!(s.audio_aus, 95);
+    assert_eq!(s.video_keys, 2, "2 s at GOP 30 / 30 fps");
+}
+
+/// A B-frame track's `mdhd` runs a frame past the 12 s its edit list,
+/// `tkhd` and `mvhd` state; the duration is the edit list's.
+#[test]
+fn a_tracks_duration_is_its_edit_lists() {
+    let demux = open("h264-640x360-30fps.mp4");
+    assert_eq!(demux.duration(), Some(MediaTime::from_micros(12_000_000)));
+}
+
+/// Edit lists that stop both tracks at 3.9 s, partway through a group of
+/// pictures and partway through an AAC frame. The table stops at the last
+/// sample shown before then: for video the B-frame at 3.867 s, decoded after
+/// the P-frame at 3.9 s it depends on, which is sent but not shown.
+#[test]
+fn an_edit_list_that_ends_early_stops_the_tracks_there() {
+    let mut demux = open("h264-aac-edit-trimmed.mp4");
+    let end = Some(MediaTime::from_micros(3_900_000));
+    assert_eq!(demux.duration(), end);
+    assert_eq!(demux.video_end(), end);
+    assert_eq!(demux.audio_end(), end);
+    let video = demux.video_track().expect("a video track").0;
+    let audio = demux.audio_track().expect("an audio track").0;
+    let aus = access_units(&mut demux);
+    let video_pts: Vec<i64> = aus
+        .iter()
+        .filter(|(track, ..)| *track == video)
+        .map(|(_, pts, ..)| pts.as_micros())
+        .collect();
+    // FFmpeg shows 117 of the 180 pictures, the last at 3.867 s.
+    assert_eq!(video_pts.len(), 118);
+    assert_eq!(video_pts[116], 3_900_000, "the reference past the end");
+    assert_eq!(video_pts[117], 3_866_666);
+    assert_eq!(
+        video_pts.iter().filter(|&&pts| pts < 3_900_000).count(),
+        117
+    );
+    // The priming frame, then every frame that starts before 3.9 s.
+    let audio_pts: Vec<i64> = aus
+        .iter()
+        .filter(|(track, ..)| *track == audio)
+        .map(|(_, pts, ..)| pts.as_micros())
+        .collect();
+    assert_eq!(audio_pts.len(), 184);
+    assert!(audio_pts[183] < 3_900_000, "{}", audio_pts[183]);
+}
+
+/// A file whose edit lists cover all of its media states no end.
+#[test]
+fn an_edit_list_over_the_whole_media_states_no_end_short_of_it() {
+    let demux = open("h264-aac-640x360-30fps.mp4");
+    let duration = demux.duration();
+    assert!(demux.video_end() <= duration && demux.audio_end() <= duration);
+    assert_eq!(demux.audio_end(), Some(MediaTime::from_micros(6_000_000)));
+}
+
 #[test]
 fn audio_format_carries_the_files_asc() {
     let mut demux = open("h264-aac-640x360-30fps.mp4");

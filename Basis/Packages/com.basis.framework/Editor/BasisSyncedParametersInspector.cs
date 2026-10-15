@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Basis.Editor.Localization;
 using Basis.Scripts.Networking.Sync;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -14,12 +15,12 @@ public class BasisSyncedParametersInspector : BasisDocInspector_UI
         var root = new VisualElement();
 
         root.Add(BasisSyncInspectorUI.Header(
-            "Basis Synced Parameters",
-            "Build a list of named parameters, each with per-axis compression. On the owner call Set*(name, value); on every other client Get*(name) returns the interpolated value. Owner-authoritative (TakeOwnership)."));
+            BasisEditorLocalization.Get("editor.sync.parameters.title"),
+            BasisEditorLocalization.Get("editor.sync.parameters.description")));
 
         root.Add(BasisSyncInspectorUI.ValidationContainer(Validate));
 
-        VisualElement card = BasisSyncInspectorUI.Card("Parameters");
+        VisualElement card = BasisSyncInspectorUI.Card(BasisEditorLocalization.Get("editor.sync.parameters.card"));
         var list = new VisualElement();
         card.Add(list);
 
@@ -33,7 +34,7 @@ public class BasisSyncedParametersInspector : BasisDocInspector_UI
             serializedObject.ApplyModifiedProperties();
             RebuildList(list);
         })
-        { text = "+ Add Parameter", tooltip = "Add a new named, synced value. Reference it by name from Set*/Get* in code." };
+        { text = BasisEditorLocalization.Get("editor.sync.parameters.add"), tooltip = BasisEditorLocalization.Get("editor.sync.parameters.add.tooltip") };
         add.style.marginTop = 4;
         card.Add(add);
         root.Add(card);
@@ -65,7 +66,7 @@ public class BasisSyncedParametersInspector : BasisDocInspector_UI
 
         if (prop.arraySize == 0)
         {
-            var empty = new Label("No parameters yet. Use “+ Add Parameter”.");
+            var empty = new Label(BasisEditorLocalization.Get("editor.sync.parameters.empty"));
             empty.style.unityFontStyleAndWeight = FontStyle.Italic;
             empty.style.opacity = 0.7f;
             list.Add(empty);
@@ -85,15 +86,15 @@ public class BasisSyncedParametersInspector : BasisDocInspector_UI
         foldout.style.borderLeftColor = new StyleColor(BasisSyncInspectorUI.Accent);
         foldout.style.paddingLeft = 4;
 
-        foldout.Add(BasisSyncInspectorUI.Described(new PropertyField(nameProp),
-            "Identifier you pass to Set*/Get* in code. Must be unique within this component."));
-        foldout.Add(BasisSyncInspectorUI.Described(new PropertyField(typeProp),
-            "Value type — sets how many components are sent and whether it interpolates (continuous) or snaps (discrete)."));
-        var interpField = BasisSyncInspectorUI.Described(new PropertyField(interpProp),
-            "Smooth this parameter between received updates (continuous types only).");
+        foldout.Add(BasisSyncInspectorUI.Described(new PropertyField(nameProp, BasisEditorLocalization.Get("editor.common.name")),
+            BasisEditorLocalization.Get("editor.sync.parameters.name.tooltip")));
+        foldout.Add(BasisSyncInspectorUI.Described(new PropertyField(typeProp, BasisEditorLocalization.Get("editor.common.type")),
+            BasisEditorLocalization.Get("editor.sync.parameters.type.tooltip")));
+        var interpField = BasisSyncInspectorUI.Described(new PropertyField(interpProp, BasisEditorLocalization.Get("editor.sync.interpolate")),
+            BasisEditorLocalization.Get("editor.sync.parameters.interpolate.tooltip"));
         foldout.Add(interpField);
 
-        var axisCard = BasisSyncInspectorUI.Card("Compression (per axis)", false);
+        var axisCard = BasisSyncInspectorUI.Card(BasisEditorLocalization.Get("editor.sync.compression.card"), false);
         VisualElement[] axes =
         {
             BasisSyncInspectorUI.CompressionAxisRow(serializedObject, element.FindPropertyRelative("AxisX"), "X"),
@@ -111,7 +112,7 @@ public class BasisSyncedParametersInspector : BasisDocInspector_UI
             serializedObject.ApplyModifiedProperties();
             RebuildList(list);
         })
-        { text = "Remove", tooltip = "Delete this parameter." };
+        { text = BasisEditorLocalization.Get("editor.common.remove"), tooltip = BasisEditorLocalization.Get("editor.sync.parameters.remove.tooltip") };
         remove.style.alignSelf = Align.FlexEnd;
         foldout.Add(remove);
 
@@ -125,7 +126,7 @@ public class BasisSyncedParametersInspector : BasisDocInspector_UI
             int comps = BasisSyncedParameters.ComponentCount(type);
             bool discrete = typeProp.enumValueIndex >= (int)BasisSyncedParameterType.Int;
 
-            string name = string.IsNullOrEmpty(nameProp.stringValue) ? "(unnamed)" : nameProp.stringValue;
+            string name = string.IsNullOrEmpty(nameProp.stringValue) ? BasisEditorLocalization.Get("editor.sync.parameters.unnamed") : nameProp.stringValue;
             foldout.text = $"{name}  ·  {type}";
 
             interpField.style.display = discrete ? DisplayStyle.None : DisplayStyle.Flex;
@@ -152,10 +153,10 @@ public class BasisSyncedParametersInspector : BasisDocInspector_UI
             if (p == null) continue;
             if (string.IsNullOrWhiteSpace(p.Name)) { empty++; continue; }
             if (!seen.Add(p.Name))
-                issues.Add(BasisSyncIssue.Error($"Duplicate parameter name '{p.Name}' — only the first will be registered."));
+                issues.Add(BasisSyncIssue.Error(BasisEditorLocalization.Get("editor.sync.parameters.duplicate", p.Name)));
         }
-        if (empty > 0) issues.Add(BasisSyncIssue.Warning($"{empty} parameter(s) have no name and will be skipped."));
-        if (c.Parameters.Count == 0) issues.Add(BasisSyncIssue.Warning("No parameters defined yet — add one below."));
+        if (empty > 0) issues.Add(BasisSyncIssue.Warning(BasisEditorLocalization.Get("editor.sync.parameters.unnamedSkipped", empty)));
+        if (c.Parameters.Count == 0) issues.Add(BasisSyncIssue.Warning(BasisEditorLocalization.Get("editor.sync.parameters.none")));
         return issues;
     }
 }

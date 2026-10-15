@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
 using Basis;
+using Basis.BasisUI;
 using Cilbox;
 using NUnit.Framework;
 using UnityEngine;
@@ -73,7 +74,13 @@ namespace Basis.Tests.Sync
         }
 
         [Test]
-        public void SafeUtilWhitelist_PreservesExistingSurfaceAndAddsOnlyBudgetHelpers()
+        public void GetCurrentLanguage_ReturnsSelectedBasisUILanguage()
+        {
+            Assert.AreEqual(BasisLocalization.CurrentLanguage, SafeUtil.GetCurrentLanguage());
+        }
+
+        [Test]
+        public void SafeUtilWhitelist_PreservesExistingSurfaceAndAddsLanguageGetter()
         {
             FieldInfo field = typeof(CilboxBasisCommon).GetField(
                 "commonMethodWhitelist",
@@ -86,13 +93,54 @@ namespace Basis.Tests.Sync
             CollectionAssert.AreEquivalent(new[]
             {
                 ".ctor",
+                nameof(SafeUtil.GetCurrentLanguage),
                 nameof(SafeUtil.AddEventTrigger),
                 nameof(SafeUtil.MakeNetworkable),
                 nameof(SafeUtil.MakeInteractable),
                 nameof(SafeUtil.GetExecutionBudgetUs),
                 nameof(SafeUtil.GetRemainingExecutionBudgetUs),
                 nameof(SafeUtil.GetLastFrameExecutionUs),
+                nameof(SafeUtil.GetContentGroupId),
+                nameof(SafeUtil.GetContentNetworkId),
+                nameof(SafeUtil.GetContentName),
+                nameof(SafeUtil.GetContentAuthor),
+                nameof(SafeUtil.GetContentTags),
             }, allowed);
+        }
+
+        [Test]
+        public void ContentGetters_ReadOwningContentDescription()
+        {
+            BasisProp prop = root.AddComponent<BasisProp>();
+            prop.BasisBundleDescription = new BasisBundleDescription("Test Prop", "desc")
+            {
+                ContentGroupId = "group-123",
+                Tags = new[] { "Horror" },
+                Authorship = new BasisBundleAuthorship { Author = "Someone", Contact = "https://example.invalid" },
+            };
+
+            Assert.AreEqual("group-123", SafeUtil.GetContentGroupId(proxy));
+            Assert.AreEqual("Test Prop", SafeUtil.GetContentName(proxy));
+            Assert.AreEqual("Someone", SafeUtil.GetContentAuthor(proxy));
+            Assert.AreEqual(string.Empty, SafeUtil.GetContentNetworkId(proxy));
+
+            string[] tags = SafeUtil.GetContentTags(proxy);
+            CollectionAssert.AreEqual(new[] { "Horror" }, tags);
+            tags[0] = "Changed";
+            Assert.AreEqual("Horror", prop.BasisBundleDescription.Tags[0]);
+        }
+
+        [Test]
+        public void ContentGetters_ReturnEmptyWithoutContent()
+        {
+            // The proxy itself is not used here: TryResolve falls back to any BasisScene in the
+            // editor's open scene, so only inputs that cannot resolve are deterministic.
+            object notAComponent = new object();
+            Assert.AreEqual(string.Empty, SafeUtil.GetContentGroupId(null));
+            Assert.AreEqual(string.Empty, SafeUtil.GetContentNetworkId(notAComponent));
+            Assert.AreEqual(string.Empty, SafeUtil.GetContentName(null));
+            Assert.AreEqual(string.Empty, SafeUtil.GetContentAuthor(notAComponent));
+            CollectionAssert.IsEmpty(SafeUtil.GetContentTags(null));
         }
     }
 }

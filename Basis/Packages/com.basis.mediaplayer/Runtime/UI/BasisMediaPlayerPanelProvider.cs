@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System.Collections.Generic;
 using Basis.BasisUI;
 using Basis.Scripts.Drivers;
@@ -13,7 +14,8 @@ using UnityEngine.UI;
 /// while the scene holds no players. <see cref="BasisMediaPlayerRegistry"/> is
 /// the data source.
 /// </summary>
-public class BasisMediaPlayerPanelProvider : BasisMenuActionProvider<BasisMainMenu>
+[AutoStaticsCleanup]
+public partial class BasisMediaPlayerPanelProvider : BasisMenuActionProvider<BasisMainMenu>
 {
     public const string Perm_Control = "basis.mediaplayer.control";
     public const string StaticTitleKey = "menu.provider.mediaPlayers";
@@ -444,9 +446,8 @@ public class BasisMediaPlayerPanelProvider : BasisMenuActionProvider<BasisMainMe
             // visibly becomes "https://youtube.com/…" rather than being silently rewritten.
             string normalized = BasisMediaUrlRouter.NormalizeUrl(u);
             if (normalized != u) _urlField.SetValueWithoutNotify(normalized);
-            // A typed URL is the user's own choice and skips the prompt.
-            if (_activeNetworking != null) _ = _activeNetworking.SetApprovedUrl(normalized);
-            else _activePlayer.LoadApprovedUrl(normalized);
+            if (_activeNetworking != null) _ = _activeNetworking.TrySetUrlAsync(normalized, true);
+            else _activePlayer.LoadUrl(normalized, true);
         };
 
         PanelButton playBtn = PanelButton.CreateNew(actions);
@@ -523,7 +524,7 @@ public class BasisMediaPlayerPanelProvider : BasisMenuActionProvider<BasisMainMe
         if (player.State == BmState.Idle || player.State == BmState.Ended || player.State == BmState.Error)
         {
             string url = player.ResolvedUrl;
-            if (!string.IsNullOrEmpty(url)) player.LoadUrl(url);
+            if (!string.IsNullOrEmpty(url)) player.LoadUrl(url, true);
         }
     }
 
@@ -620,7 +621,7 @@ public class BasisMediaPlayerPanelProvider : BasisMenuActionProvider<BasisMainMe
                 return;
             }
             string url = _activePlayer.ResolvedUrl;
-            if (!string.IsNullOrEmpty(url)) _activePlayer.LoadUrl(url);
+            if (!string.IsNullOrEmpty(url)) _activePlayer.LoadUrl(url, true);
         };
 
         _advancedToggle = PanelToggle.CreateNewEntry(content);
@@ -846,12 +847,12 @@ public class BasisMediaPlayerPanelProvider : BasisMenuActionProvider<BasisMainMe
     {
         if (_subtitleDropdown == null || _activePlayer == null) return;
         var tracks = _activePlayer.SubtitleTracks;
-        var labels = new List<string> { "CC (embedded)" };
+        var labels = new List<string> { BasisLocalization.Get("mediaPlayer.subtitles.embedded") };
         for (int i = 0; i < tracks.Count; i++)
         {
             var t = tracks[i];
             labels.Add(!string.IsNullOrEmpty(t.Label) ? t.Label
-                : (!string.IsNullOrEmpty(t.Language) ? t.Language : $"Track {i + 1}"));
+                : (!string.IsNullOrEmpty(t.Language) ? t.Language : BasisLocalization.Get("mediaPlayer.subtitles.track", i + 1)));
         }
         _subtitleDropdown.AssignEntries(labels);
         int sel = _activePlayer.SelectedSubtitleTrackIndex;
@@ -1160,11 +1161,11 @@ public class BasisMediaPlayerPanelProvider : BasisMenuActionProvider<BasisMainMe
         // A dormant player is idle for a reason the viewer set, so say that
         // rather than leaving it reading as though nothing was ever loaded.
         _statusBuilder.Append("<color=").Append(dormant ? "#9AA0A6" : StatusColorHex(status)).Append("><b>")
-            .Append(dormant ? "Dormant" : StatusLabel(status)).Append("</b></color>");
+            .Append(dormant ? BasisLocalization.Get("mediaPlayer.status.dormant") : StatusLabel(status)).Append("</b></color>");
         if (dormant)
-            _statusBuilder.Append("\n<color=#9AA0A6>Beyond the limit of ")
-                .Append(BasisMediaSessionGovernor.MaxActive)
-                .Append(" playing at once. Select it to start it.</color>");
+            _statusBuilder.Append("\n<color=#9AA0A6>")
+                .Append(BasisLocalization.Get("mediaPlayer.status.dormant.description", BasisMediaSessionGovernor.MaxActive))
+                .Append("</color>");
         if (durSec > 0)
             _statusBuilder.Append("  <color=#9AA0A6>").Append(FormatTime(posSec))
                 .Append(" / ").Append(FormatTime(durSec)).Append("</color>");
@@ -1179,7 +1180,7 @@ public class BasisMediaPlayerPanelProvider : BasisMenuActionProvider<BasisMainMe
         if (status == BmState.Error)
         {
             if (string.IsNullOrEmpty(errText))
-                _statusBuilder.Append("\n<color=#E5534B>Error ").Append(err).Append("</color>");
+                _statusBuilder.Append("\n<color=#E5534B>").Append(BasisLocalization.Get("mediaPlayer.status.errorCode", err)).Append("</color>");
             else
                 _statusBuilder.Append("\n<color=#E5534B><noparse>").Append(SanitizeForMarkup(errText)).Append("</noparse></color>");
         }
@@ -1191,7 +1192,7 @@ public class BasisMediaPlayerPanelProvider : BasisMenuActionProvider<BasisMainMe
             // Part of the source was refused and the rest plays on, so the
             // state word stays accurate and the reason is a separate note.
             if (!string.IsNullOrEmpty(errText))
-                _statusBuilder.Append("\n<color=#E6C15A>Issue: <noparse>").Append(SanitizeForMarkup(errText)).Append("</noparse></color>");
+                _statusBuilder.Append("\n<color=#E6C15A>").Append(BasisLocalization.Get("mediaPlayer.status.issue")).Append(" <noparse>").Append(SanitizeForMarkup(errText)).Append("</noparse></color>");
         }
 
         string markup = _statusBuilder.ToString();
@@ -1207,13 +1208,13 @@ public class BasisMediaPlayerPanelProvider : BasisMenuActionProvider<BasisMainMe
     {
         switch (status)
         {
-            case BmState.Idle: return "No media loaded";
-            case BmState.Opening: return "Connecting";
-            case BmState.Buffering: return "Buffering";
-            case BmState.Playing: return "Playing";
-            case BmState.Paused: return "Paused";
-            case BmState.Ended: return "Ended";
-            case BmState.Error: return "Error";
+            case BmState.Idle: return BasisLocalization.Get("mediaPlayer.status.idle");
+            case BmState.Opening: return BasisLocalization.Get("mediaPlayer.status.opening");
+            case BmState.Buffering: return BasisLocalization.Get("mediaPlayer.status.buffering");
+            case BmState.Playing: return BasisLocalization.Get("mediaPlayer.status.playing");
+            case BmState.Paused: return BasisLocalization.Get("mediaPlayer.status.paused");
+            case BmState.Ended: return BasisLocalization.Get("mediaPlayer.status.ended");
+            case BmState.Error: return BasisLocalization.Get("mediaPlayer.status.error");
             default: return status.ToString();
         }
     }

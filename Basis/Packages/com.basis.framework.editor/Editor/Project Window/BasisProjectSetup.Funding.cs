@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
@@ -7,6 +8,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
 
+[NoAutoStaticsCleanup]
 public partial class BasisProjectSetup : EditorWindow
 {
     // ─────────────────────────── OpenCollective constants ───────────────────────────
@@ -108,7 +110,7 @@ public partial class BasisProjectSetup : EditorWindow
     [MenuItem("Basis/Support Basis (OpenCollective)", false, 900)]
     public static void ShowFundingTab()
     {
-        var window = GetWindow<BasisProjectSetup>("Basis Project Setup");
+        var window = GetWindow<BasisProjectSetup>(Tr("projectSetup.window.title", "Basis Project Setup"));
         window.minSize = new Vector2(640, 560);
         window._tab = Tab.Funding;
         EditorPrefs.SetInt(PREF_TAB, (int)Tab.Funding);

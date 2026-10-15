@@ -58,8 +58,8 @@ namespace Basis.Scripts.BasisCharacterController
 
             // Same speed model you already use
             ctx.CurrentSpeed =
-                math.lerp(ctx.MinimumMovementSpeed, ctx.MaximumMovementSpeed, ctx.MovementSpeedScale)
-                + ctx.MinimumMovementSpeed * ctx.MovementSpeedBoost;
+                (math.lerp(ctx.MinimumMovementSpeed, ctx.MaximumMovementSpeed, ctx.MovementSpeedScale)
+                + ctx.MinimumMovementSpeed * ctx.MovementSpeedBoost) * BasisLocalCharacterDriver.LocomotionSpeedScale();
 
             // Planar input
             Vector3 planar = new Vector3(ctx.MovementVector.x, 0f, ctx.MovementVector.y).normalized;

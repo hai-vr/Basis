@@ -157,7 +157,7 @@ fn check_fixture(path: &Path) -> Result<String, String> {
                 stream.height.unwrap_or(0)
             ));
         }
-        let packets = oracle.packets_for(stream.index);
+        let packets = without_trailing_discards(oracle.packets_for(stream.index));
         diff_stream("video", &ours_video, &packets, true, shift_of(video_track))?;
         checks.push(format!("video {} AUs", ours_video.len()));
     } else if !ours_video.is_empty() {
@@ -204,7 +204,7 @@ fn check_fixture(path: &Path) -> Result<String, String> {
                 ours_audio.len()
             ));
         } else {
-            let packets = oracle.packets_for(stream.index);
+            let packets = without_trailing_discards(oracle.packets_for(stream.index));
             diff_stream("audio", &ours_audio, &packets, false, shift_of(audio_track))?;
             checks.push(format!("audio {} AUs", ours_audio.len()));
         }
@@ -213,6 +213,20 @@ fn check_fixture(path: &Path) -> Result<String, String> {
     }
 
     Ok(checks.join(", "))
+}
+
+/// Where an edit list ends a track early, FFmpeg keeps samples past the
+/// end, flagged discard, up to a cut-off of its own. Once every sample it
+/// shows is behind them, none of those is a reference for one it shows, and
+/// the demuxer stops at the last sample shown, so they are not compared.
+fn without_trailing_discards(mut packets: Vec<OraclePacket>) -> Vec<OraclePacket> {
+    while packets
+        .last()
+        .is_some_and(|p| p.flags.as_deref().is_some_and(|f| f.contains('D')))
+    {
+        packets.pop();
+    }
+    packets
 }
 
 fn diff_stream(

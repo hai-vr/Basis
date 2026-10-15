@@ -32,7 +32,7 @@
         </engine:Foldout>
 
         <engine:Foldout text="Picture" name="PictureFoldout" value="false" class="bvp-foldout">
-            <engine:Label text="Bound to MaterialPropertyBlock as _BasisBrightness/Contrast/Saturation/Gamma." class="bvp-help-info"/>
+            <engine:Label text="Bound to MaterialPropertyBlock as _BasisBrightness/Contrast/Saturation/Gamma." name="PictureHelp" class="bvp-help-info"/>
             <editor:PropertyField name="PictureField" label="Picture"/>
         </engine:Foldout>
 

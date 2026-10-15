@@ -48,6 +48,8 @@ public class RalivIKSpine
         public Vector3 chestForward;
         public float chestHintWeight;
         public int chestIndex;
+        public bool clampHipDistance;
+        public float headFollow; // How much the bones between hips and head take on the head's rotated rest shape
         public FixedList512Bytes<Vector3> targetSpinePositions;
         public FixedList512Bytes<Vector3> hipTargetAlignedSpinePositions;
         public FixedList512Bytes<Vector3> headTargetAlignedSpinePositions;
@@ -56,13 +58,17 @@ public class RalivIKSpine
     public static void SolveSpine(ref SpineData spineData)
     {
 
-        float hipHeadRestDistance = Vector3.Magnitude(spineData.restPositions[^1] - spineData.restPositions[0]);
-        Vector3 headToHip = spineData.hipTargetPosition - spineData.headTargetPosition;
-        headToHip = headToHip.normalized * hipHeadRestDistance;
-        spineData.hipTargetPosition = Vector3.Lerp(spineData.hipTargetPosition, spineData.headTargetPosition + headToHip, 0.5f);
+        // Skipped when the virtual spine has pinned the hips below the head; they're already at rest distance.
+        if (spineData.clampHipDistance)
+        {
+            float hipHeadRestDistance = Vector3.Magnitude(spineData.restPositions[^1] - spineData.restPositions[0]);
+            Vector3 headToHip = spineData.hipTargetPosition - spineData.headTargetPosition;
+            headToHip = headToHip.normalized * hipHeadRestDistance;
+            spineData.hipTargetPosition = Vector3.Lerp(spineData.hipTargetPosition, spineData.headTargetPosition + headToHip, 0.5f);
+        }
 
-        Quaternion hipRotationOffset = Quaternion.Inverse(spineData.restRotations[0]) * spineData.hipTargetRotation;
-        Quaternion headRotationOffset = Quaternion.Inverse(spineData.restRotations[^1]) * spineData.headTargetRotation;
+        Quaternion hipRotationOffset = spineData.hipTargetRotation * Quaternion.Inverse(spineData.restRotations[0]);
+        Quaternion headRotationOffset = spineData.headTargetRotation * Quaternion.Inverse(spineData.restRotations[^1]);
 
         for (int index = 0; index < spineData.headTargetAlignedSpinePositions.Length; index++)
         {
@@ -93,7 +99,8 @@ public class RalivIKSpine
 
         for (int index = 0; index < spineData.targetSpinePositions.Length; index++)
         {
-            spineData.targetSpinePositions[index] = Vector3.Lerp(spineData.hipTargetAlignedSpinePositions[index], spineData.headTargetAlignedSpinePositions[index], spineData.t[index]);
+            float follow = index > 0 && index < spineData.targetSpinePositions.Length - 1 ? spineData.headFollow : 1f;
+            spineData.targetSpinePositions[index] = Vector3.Lerp(spineData.hipTargetAlignedSpinePositions[index], spineData.headTargetAlignedSpinePositions[index], spineData.t[index] * follow);
         }
 
         // SOFT FABRIK

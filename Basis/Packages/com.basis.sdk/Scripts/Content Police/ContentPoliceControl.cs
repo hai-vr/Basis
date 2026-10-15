@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,7 +11,8 @@ using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 
-public static class ContentPoliceControl
+[AutoStaticsCleanup]
+public static partial class ContentPoliceControl
 {
     public static bool ShaderPrewarmEnabled = false;
     public static bool MaterialCorrectionEnabled = false;
@@ -54,7 +56,7 @@ public static class ContentPoliceControl
         }
     }
 
-    private static readonly MediaFieldPolicy[] mediaFieldPolicies =
+    [NoAutoStaticsCleanup] private static readonly MediaFieldPolicy[] mediaFieldPolicies =
     {
         new MediaFieldPolicy("BasisMediaPlayerStreaming", "ConfigureOnStart"),
         new MediaFieldPolicy("BasisMediaPlayer", "playOnStart", "allowLocalAddresses"),
@@ -64,6 +66,8 @@ public static class ContentPoliceControl
     // shim bridge. While set, the avatar content walk strips the Cilbox sandbox host + proxies so
     // no avatar script runs. Avatar content only — props and worlds keep their own Cilbox.
     public static bool AvatarCilboxLocked = false;
+
+    public static Action<GameObject> OnBeforeContentActivated;
 
     // Cilbox lives in com.cnlohr.cilbox which this assembly does not reference, so the lock strip
     // matches by full type name: the avatar sandbox host and its per-behaviour proxies.
@@ -540,6 +544,14 @@ public static class ContentPoliceControl
     {
         if (content != null)
         {
+            try
+            {
+                OnBeforeContentActivated?.Invoke(content);
+            }
+            catch (Exception e)
+            {
+                BasisDebug.LogError($"[ContentPolice] Pre-activation hook failed for {content.name}: {e}", BasisDebug.LogTag.Event);
+            }
             content.SetActive(true);
         }
     }
@@ -1162,7 +1174,7 @@ public static class ContentPoliceControl
     // asset is mutated.
     // ------------------------------------------------------------------
 
-    private static readonly AnimationEvent[] EmptyAnimationEvents = new AnimationEvent[0];
+    [NoAutoStaticsCleanup] private static readonly AnimationEvent[] EmptyAnimationEvents = new AnimationEvent[0];
 
     private static void StripEventsFromRuntimeController(RuntimeAnimatorController controller)
     {
@@ -1215,6 +1227,7 @@ public static class ContentPoliceControl
     // .NET Standard 2.0 has no ReferenceEqualityComparer; supply one so the
     // visited set uses identity, not UnityEngine.Object.Equals (which is
     // value-equal across destroyed objects).
+    [NoAutoStaticsCleanup]
     private sealed class ReferenceEqualityComparerLocal : IEqualityComparer<object>
     {
         public static readonly ReferenceEqualityComparerLocal Instance = new ReferenceEqualityComparerLocal();

@@ -166,8 +166,7 @@ public class BasisAvatarValidator : BasisValidationRunner
                 BasisEditorLocalization.Get("sdk.avatarValidator.bundleDescription.fix"));
         }
 
-        BasisAssetBundleObject assetBundleObject = BasisValidationAssetCache.AssetBundleObject;
-        if (assetBundleObject != null && assetBundleObject.UseCustomPassword && string.IsNullOrEmpty(assetBundleObject.UserSelectedPassword))
+        if (Avatar.UseCustomPassword && string.IsNullOrEmpty(Avatar.UserSelectedPassword))
         {
             bucket.Error(BasisEditorLocalization.Get("sdk.avatarValidator.password.empty"), ValidationCategory.Security);
         }
@@ -491,11 +490,13 @@ public class BasisAvatarValidator : BasisValidationRunner
         foreach (var smr in smrs)
         {
             if (smr == null) continue;
+#pragma warning disable 618
             if (!smr.allowOcclusionWhenDynamic)
             {
                 smr.allowOcclusionWhenDynamic = true;
                 EditorUtility.SetDirty(smr);
             }
+#pragma warning restore 618
         }
     }
 
@@ -873,11 +874,13 @@ public class BasisAvatarValidator : BasisValidationRunner
             }
         }
 
+#pragma warning disable 618
         if (skinnedMeshRenderer.allowOcclusionWhenDynamic == false)
             bucket.Error(
                 BasisEditorLocalization.Get("sdk.avatarValidator.mesh.dynamicOcclusion", skinnedMeshRenderer.gameObject.name),
                 ValidationCategory.GameObject, FixEnableDynamicOcclusionAllSMR,
                 BasisEditorLocalization.Get("sdk.avatarValidator.mesh.dynamicOcclusion.fix"));
+#pragma warning restore 618
     }
 
     /// <summary>
@@ -929,6 +932,25 @@ public class BasisAvatarValidator : BasisValidationRunner
         errorPanel.style.display = DisplayStyle.None;
     }
 
+    private static string CategoryName(ValidationCategory category)
+    {
+        switch (category)
+        {
+            case ValidationCategory.Configuration:
+                return BasisEditorLocalization.Get("sdk.validator.category.configuration");
+            case ValidationCategory.GameObject:
+                return BasisEditorLocalization.Get("sdk.validator.category.gameObject");
+            case ValidationCategory.Performance:
+                return BasisEditorLocalization.Get("sdk.validator.category.performance");
+            case ValidationCategory.Security:
+                return BasisEditorLocalization.Get("sdk.validator.category.security");
+            case ValidationCategory.MissingReference:
+                return BasisEditorLocalization.Get("sdk.validator.category.missingReference");
+            default:
+                return BasisEditorLocalization.Get("editor.common.none");
+        }
+    }
+
     private VisualElement CreateCategoryPanel(ValidationCategory category)
     {
         VisualElement panel = new VisualElement();
@@ -949,7 +971,7 @@ public class BasisAvatarValidator : BasisValidationRunner
         label.style.unityFontStyleAndWeight = FontStyle.Bold;
         label.style.whiteSpace = WhiteSpace.Normal;
 
-        Label header = new Label(BasisEditorLocalization.Get("sdk.validator.warnings.header", category));
+        Label header = new Label(BasisEditorLocalization.Get("sdk.validator.warnings.header", CategoryName(category)));
         header.style.unityFontStyleAndWeight = FontStyle.Bold;
         header.style.color = new StyleColor(BasisEditorUI.Light ? new Color(0.10f, 0.10f, 0.10f) : Color.white);
         panel.Add(header);
@@ -1007,7 +1029,7 @@ public class BasisAvatarValidator : BasisValidationRunner
             {
                 if (Index >= maxDisplayCount && issues.Count > maxDisplayCount)
                 {
-                    _warningTextLines.Add(BasisEditorLocalization.Get("sdk.validator.warnings.more", issues.Count - Index, category));
+                    _warningTextLines.Add(BasisEditorLocalization.Get("sdk.validator.warnings.more", issues.Count - Index, CategoryName(category)));
                     break;
                 }
                 _warningTextLines.Add($"- {issues[Index].Message}");

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Basis.Scripts.BasisSdk;
 using UnityEngine;
@@ -112,7 +113,7 @@ public static class BasisBundleLoadAsset
         CreatedCopy.name = InstanceID;
         return CreatedCopy;
     }
-    public static async Task<Scene> LoadSceneFromBundleAsync(BasisTrackedBundleWrapper bundle, bool MakeActiveScene, BasisProgressReport progressCallback)
+    public static async Task<Scene> LoadSceneFromBundleAsync(BasisTrackedBundleWrapper bundle, bool MakeActiveScene, BasisProgressReport progressCallback, CancellationToken cancellationToken = default)
     {
         string UniqueID = BasisGenerateUniqueID.GenerateUniqueID();
         bool AssignedIncrement = false;
@@ -259,7 +260,7 @@ public static class BasisBundleLoadAsset
                     RestoreSceneRenderers();
                 }
                 AssignedIncrement = bundle.Increment();
-                if (MakeActiveScene)
+                if (MakeActiveScene && !cancellationToken.IsCancellationRequested)
                 {
                     SceneManager.SetActiveScene(loadedScene);
                     BasisDebug.Log("Scene set as active: " + loadedScene.name);

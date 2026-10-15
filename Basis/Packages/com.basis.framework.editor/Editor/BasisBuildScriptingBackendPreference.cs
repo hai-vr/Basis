@@ -8,6 +8,7 @@ public static class BasisBuildScriptingBackendPreference
         Ask = 0,
         IL2CPP = 1,
         Mono = 2,
+        CoreCLR = 3,
     }
 
     private const string PrefKey = "Basis_Build_ScriptingBackend_Mode";

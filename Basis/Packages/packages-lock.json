@@ -279,18 +279,6 @@
         "com.unity.ugui": "2.0.0"
       }
     },
-    "com.basis.setup": {
-      "version": "file:com.basis.setup",
-      "depth": 0,
-      "source": "embedded",
-      "dependencies": {
-        "com.unity.addressables": "2.9.1",
-        "com.unity.inputsystem": "1.19.0",
-        "com.unity.xr.management": "4.5.4",
-        "com.unity.xr.openxr": "1.17.1",
-        "com.unity.render-pipelines.universal": "17.5.0"
-      }
-    },
     "com.basis.shim": {
       "version": "file:com.basis.shim",
       "depth": 0,
@@ -313,6 +301,12 @@
     },
     "com.basis.trackerobjects": {
       "version": "file:com.basis.trackerobjects",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
+    "com.basis.transport.litenetlib": {
+      "version": "file:com.basis.transport.litenetlib",
       "depth": 0,
       "source": "embedded",
       "dependencies": {}
@@ -392,7 +386,7 @@
       "dependencies": {}
     },
     "com.unity.addressables": {
-      "version": "4.0.1",
+      "version": "4.1.0",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -424,13 +418,13 @@
       "dependencies": {}
     },
     "com.unity.cloud.gltfast": {
-      "version": "6.14.1",
+      "version": "6.20.0",
       "depth": 0,
       "source": "registry",
       "dependencies": {
-        "com.unity.burst": "1.8.24",
-        "com.unity.collections": "1.2.4",
-        "com.unity.mathematics": "1.2.6",
+        "com.unity.burst": "1.8.30",
+        "com.unity.collections": "2.6.8",
+        "com.unity.mathematics": "1.3.3",
         "com.unity.modules.jsonserialize": "1.0.0",
         "com.unity.modules.unitywebrequest": "1.0.0"
       },
@@ -705,7 +699,7 @@
       }
     },
     "com.unity.xr.hands": {
-      "version": "1.10.0-pre.1",
+      "version": "1.10.0-pre.2",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -873,6 +867,12 @@
       "source": "builtin",
       "dependencies": {}
     },
+    "com.unity.modules.amd": {
+      "version": "1.0.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {}
+    },
     "com.unity.modules.androidjni": {
       "version": "1.0.0",
       "depth": 0,
@@ -951,6 +951,12 @@
         "com.unity.modules.uielements": "1.0.0",
         "com.unity.modules.audio": "1.0.0"
       }
+    },
+    "com.unity.modules.nvidia": {
+      "version": "1.0.0",
+      "depth": 0,
+      "source": "builtin",
+      "dependencies": {}
     },
     "com.unity.modules.particlesystem": {
       "version": "1.0.0",

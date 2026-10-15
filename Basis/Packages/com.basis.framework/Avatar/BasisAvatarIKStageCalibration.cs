@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Device_Management;
 using Basis.Scripts.Device_Management.Devices;
@@ -9,21 +10,37 @@ using UnityEngine;
 using Basis.IK;
 namespace Basis.Scripts.Avatar
 {
-    public static class BasisAvatarIKStageCalibration
+    [AutoStaticsCleanup]
+    public static partial class BasisAvatarIKStageCalibration
     {
-        public static class BasisHintBiasStore
+        [AutoStaticsCleanup]
+        public static partial class BasisHintBiasStore
         {
             public static readonly Dictionary<BasisBoneTrackedRole, Vector3> LocalOffset = new();
 
-            public static void Set(BasisBoneTrackedRole role, Vector3 localOffset) => LocalOffset[role] = localOffset;
-            public static bool TryGet(BasisBoneTrackedRole role, out Vector3 localOffset) => LocalOffset.TryGetValue(role, out localOffset);
+            public static void Set(BasisBoneTrackedRole role, Vector3 localOffset) => LocalOffset[role] = localOffset / SizeRatio();
+            public static bool TryGet(BasisBoneTrackedRole role, out Vector3 localOffset)
+            {
+                if (LocalOffset.TryGetValue(role, out localOffset))
+                {
+                    localOffset *= SizeRatio();
+                    return true;
+                }
+                return false;
+            }
             public static void Clear() => LocalOffset.Clear();
+            static float SizeRatio()
+            {
+                float ratio = BasisHeightDriver.AvatarEyeHeight * BasisHeightDriver.AppliedUpScale / BasisHeightDriver.FallbackHeightInMeters;
+                return float.IsNaN(ratio) || float.IsInfinity(ratio) || ratio <= 1e-4f ? 1f : ratio;
+            }
         }
 
         // Per-role limb bend-plane normal captured in the tracker's local frame at calibration. Consumed by
         // BasisLocalRigDriver via BasisTrackerBendNormalCore.ResolveWorldNormal so the knee bend plane follows
         // the lower-leg tracker's rotation instead of a fixed hips-frame axis (flip-free, natural bending).
-        public static class BasisBendNormalStore
+        [AutoStaticsCleanup]
+        public static partial class BasisBendNormalStore
         {
             public static readonly Dictionary<BasisBoneTrackedRole, Vector3> LocalAxis = new();
 
@@ -32,16 +49,23 @@ namespace Basis.Scripts.Avatar
             public static void Clear() => LocalAxis.Clear();
         }
 
-        public static class BasisLimbRollStore
+        [AutoStaticsCleanup]
+        public static partial class BasisLimbRollStore
         {
             public static readonly Dictionary<BasisBoneTrackedRole, Quaternion> TrackerToBone = new();
+            public static readonly Dictionary<BasisBoneTrackedRole, Quaternion> TrackerToBody = new();
 
             public static void Set(BasisBoneTrackedRole role, Quaternion trackerToBone) => TrackerToBone[role] = trackerToBone;
             public static bool TryGet(BasisBoneTrackedRole role, out Quaternion trackerToBone) => TrackerToBone.TryGetValue(role, out trackerToBone);
-            public static void Clear() => TrackerToBone.Clear();
+            public static void Clear()
+            {
+                TrackerToBone.Clear();
+                TrackerToBody.Clear();
+            }
         }
 
-        public static class ConstellationDebug
+        [AutoStaticsCleanup]
+        public static partial class ConstellationDebug
         {
             public class DebugSample
             {
@@ -332,6 +356,28 @@ namespace Basis.Scripts.Avatar
                 && rig.TryGetFittedTposeLocalScaled(bone, out boneTpose);
         }
 
+        public static float AuthoredFloorHeight(BasisBoneTrackedRole role, float fallback)
+        {
+            if (!BasisLocalAvatarDriver.HasTposeBoneSnapshot || !BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(role, out var bind))
+            {
+                return fallback;
+            }
+            BasisLocalAvatarDriver driver = BasisLocalPlayer.Instance != null ? BasisLocalPlayer.Instance.LocalAvatarDriver : null;
+            float scale = driver != null && driver.ScaleAvatarModification != null ? driver.ScaleAvatarModification.ApplyScale : 1f;
+            return bind.position.y * (float.IsNaN(scale) || float.IsInfinity(scale) || scale <= 1e-6f ? 1f : scale);
+        }
+        public static bool TryGetUnscaledHeadFromEye(out Vector3 headFromEye)
+        {
+            headFromEye = Vector3.zero;
+            BasisLocalBoneControl head = BasisLocalBoneDriver.HeadControl, eye = BasisLocalBoneDriver.EyeControl;
+            float deviceScale = BasisHeightDriver.DeviceScale;
+            if (head == null || eye == null || !head.HasTarget || head.Owner == null || head.Owner.Controls == null || head.TargetIndex >= head.Owner.Controls.Length || head.Owner.Controls[head.TargetIndex] != eye || head.HasTracked == BasisHasTracked.HasTracker || !(deviceScale > 1e-6f) || float.IsInfinity(deviceScale))
+            {
+                return false;
+            }
+            headFromEye = (Vector3)head.ScaledOffset / deviceScale;
+            return float.IsFinite(headFromEye.x) && float.IsFinite(headFromEye.y) && float.IsFinite(headFromEye.z);
+        }
         public static void ReprojectTrackerOffsetsForCurrentAvatar()
         {
             BasisLocalPlayer player = BasisLocalPlayer.Instance;
@@ -380,11 +426,23 @@ namespace Basis.Scripts.Avatar
                     boneTpose = fittedBoneTpose;
                 }
 
+                Vector3 calibratedHead = input.CalibratedUnscaledHeadPosition;
+                if (input.HasCalibratedHeadFromEye && TryGetUnscaledHeadFromEye(out Vector3 headFromEyeNow))
+                {
+                    calibratedHead += input.CalibratedUnscaledHeadRotation * (headFromEyeNow - input.CalibratedUnscaledHeadFromEye);
+                }
+                bool floorAnchored = BasisCalibrationMath.IsFloorAnchoredRole(role);
+                float floorY = floorAnchored ? BasisCalibrationMath.FloorAnchorY(BasisLocalPlayspaceMover.VerticalOffset, BasisHeightDriver.DeviceScale, BasisInput.OffsetCoords.position, BasisInput.OffsetCoords.rotation) + AuthoredFloorHeight(role, boneTpose.y) : 0f;
+                Vector3 calibratedTracker = input.CalibratedUnscaledPosition;
+                if (floorAnchored)
+                {
+                    calibratedTracker.y += BasisInput.UnscaledVerticalLift() - input.CalibratedUnscaledLift;
+                }
                 BasisCalibrationMath.ReprojectInverseOffsetPosition(
-                    input.CalibratedUnscaledPosition, input.CalibratedUnscaledRotation,
-                    input.CalibratedUnscaledHeadPosition, input.CalibratedUnscaledHeadRotation,
+                    calibratedTracker, input.CalibratedUnscaledRotation,
+                    calibratedHead, input.CalibratedUnscaledHeadRotation,
                     BasisHeightDriver.DeviceScale, BasisInput.OffsetCoords.position, BasisInput.OffsetCoords.rotation,
-                    roleHeadTpose, boneTpose,
+                    roleHeadTpose, boneTpose, floorAnchored, floorY,
                     out Vector3 inverseOffsetPosition);
                 input.Control.SetInverseOffset(inverseOffsetPosition, input.Control.InverseOffsetFromBone.rotation);
             }
@@ -448,6 +506,21 @@ namespace Basis.Scripts.Avatar
             BasisLocalRigDriver.RecalibratedLeftShoulder = OffsetFromReference(s_refLeftShoulder, rootInv, Mapping.leftShoulder, BasisBoneTrackedRole.LeftShoulder, data.offsetRotationLeftShoulder);
             BasisLocalRigDriver.RecalibratedRightShoulder = OffsetFromReference(s_refRightShoulder, rootInv, Mapping.RightShoulder, BasisBoneTrackedRole.RightShoulder, data.offsetRotationRightShoulder);
             BasisLocalRigDriver.HasRecalibratedRotationOffsets = true;
+            foreach (KeyValuePair<BasisBoneTrackedRole, Quaternion> pair in BasisLimbRollStore.TrackerToBody)
+            {
+                BasisLimbRollStore.Set(pair.Key, pair.Value * PureBind(rootInv, LimbRollBone(Mapping, pair.Key), pair.Key));
+            }
+        }
+        static Transform LimbRollBone(Common.BasisTransformMapping mapping, BasisBoneTrackedRole role)
+        {
+            switch (role)
+            {
+                case BasisBoneTrackedRole.LeftLowerLeg: return mapping.LeftLowerLeg;
+                case BasisBoneTrackedRole.RightLowerLeg: return mapping.RightLowerLeg;
+                case BasisBoneTrackedRole.LeftLowerArm: return mapping.leftLowerArm;
+                case BasisBoneTrackedRole.RightLowerArm: return mapping.RightLowerArm;
+                default: return null;
+            }
         }
 
         // Avatar-bind-independent calibration reference: Inverse(boneSimOutgoing) * AnimatorRoot for a
@@ -1336,7 +1409,11 @@ namespace Basis.Scripts.Avatar
         {
             if (storedRoleTransforms.TryGetValue(role, out Transform bone) && bone != null)
             {
-                BasisLimbRollStore.Set(role, Quaternion.Inverse(trackerWorldRot) * bone.rotation);
+                Quaternion trackerToBone = Quaternion.Inverse(trackerWorldRot) * bone.rotation;
+                Common.BasisTransformMapping mapping = BasisLocalAvatarDriver.Mapping;
+                Quaternion rootInv = mapping.HasAnimatorRoot ? Quaternion.Inverse(mapping.AnimatorRoot.rotation) : Quaternion.identity;
+                BasisLimbRollStore.Set(role, trackerToBone);
+                BasisLimbRollStore.TrackerToBody[role] = trackerToBone * Quaternion.Inverse(PureBind(rootInv, bone, role));
             }
         }
         // Helper local function to compute a tracker-local offset vector that points "up and out"

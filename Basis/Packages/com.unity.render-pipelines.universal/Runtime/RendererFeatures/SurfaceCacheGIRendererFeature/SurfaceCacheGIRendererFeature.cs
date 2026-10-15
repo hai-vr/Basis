@@ -370,17 +370,25 @@ namespace UnityEngine.Rendering.Universal
                 {
                     _entityChangeSource.CollectChanges(changeSet.WorldChangeSet);
 
-                    _worldAdapter.Update(
-                        changeSet.WorldChangeSet,
-                        RenderSettings.ambientMode,
-                        RenderSettings.skybox,
-                        RenderSettings.ambientSkyColor.linear,
-                        RenderSettings.ambientEquatorColor.linear,
-                        RenderSettings.ambientGroundColor.linear,
-                        RenderSettings.ambientIntensity,
-                        _conformToUnityGIFormat,
-                        RenderingLayerMask,
-                        _world);
+                    try
+                    {
+                        _worldAdapter.Update(
+                            changeSet.WorldChangeSet,
+                            RenderSettings.ambientMode,
+                            RenderSettings.skybox,
+                            RenderSettings.ambientSkyColor.linear,
+                            RenderSettings.ambientEquatorColor.linear,
+                            RenderSettings.ambientGroundColor.linear,
+                            RenderSettings.ambientIntensity,
+                            _conformToUnityGIFormat,
+                            RenderingLayerMask,
+                            _world);
+                    }
+                    catch
+                    {
+                        _entityChangeSource.AbortCollectChanges();
+                        throw;
+                    }
 
                     _entityChangeSource.EndCollectChanges();
                 }
@@ -794,8 +802,7 @@ namespace UnityEngine.Rendering.Universal
 
                     {
                         Debug.Assert(k_UpscaleFactor == 4);
-                        uint cycleIndex = CurrentPerCameraState.FrameIndex % 4;
-                        uint shuffledCycleIndex = cycleIndex * 7 % 16;
+                        uint shuffledCycleIndex = CurrentPerCameraState.FrameIndex / (uint)cameraInfo.ViewCount * 7 % 16;
                         passData.FullResPixelOffset = new uint2(shuffledCycleIndex / 4, shuffledCycleIndex % 4);
                     }
 

@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using UnityEngine;
 
 /// <summary>
@@ -9,6 +10,7 @@ using UnityEngine;
 /// one built by hand from a prefab. The scene-setup menu items and the
 /// developer A/B rig all build through here to keep them from drifting apart.
 /// </summary>
+[NoAutoStaticsCleanup]
 public static class BasisMediaAudioRig
 {
     /// <summary>Name of the single output a stereo arrangement uses.</summary>

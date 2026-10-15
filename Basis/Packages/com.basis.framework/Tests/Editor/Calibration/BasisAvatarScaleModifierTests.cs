@@ -61,7 +61,38 @@ public sealed class BasisAvatarScaleModifierTests
 
             Assert.That(eye.transform.position.y, Is.EqualTo(2.4f).Within(1e-4f),
                 "a 160 cm rig imported at 0.01 and scaled 1.5x must render at 2.4 m, not receive 0.01 twice");
-            Assert.That(wrapper.transform.localScale, Is.EqualTo(Vector3.one));
+            Assert.That(wrapper.transform.localScale, Is.EqualTo(Vector3.one * 1.5f));
+            Assert.That(animatorObject.transform.localScale, Is.EqualTo(Vector3.one * 0.01f));
+        }
+        finally
+        {
+            Object.DestroyImmediate(wrapper);
+        }
+    }
+
+    [Test]
+    public void NetworkScale_CarriesTheRuntimeScaleEvenWhenTheAnimatorIsAChild()
+    {
+        GameObject wrapper = new GameObject("AvatarWrapper");
+        GameObject animatorObject = new GameObject("AnimatorRoot");
+        animatorObject.transform.SetParent(wrapper.transform, false);
+        Animator animator = animatorObject.AddComponent<Animator>();
+
+        try
+        {
+            animatorObject.transform.localScale = Vector3.one * 0.01f;
+            var modifier = new BasisAvatarScaleModifier();
+            modifier.ReInitialize(animator, wrapper.transform);
+            modifier.SetAvatarheightOverride(1.5f);
+
+            float wire = modifier.NetworkScale(animatorObject.transform);
+            Assert.That(wire, Is.EqualTo(0.015f).Within(1e-6f));
+            Assert.That(BasisCalibrationMath.ScaleAuthoredMetricByRootRatio(1.6f, wire, 0.01f), Is.EqualTo(2.4f).Within(1e-4f));
+
+            var rootModifier = new BasisAvatarScaleModifier();
+            rootModifier.ReInitialize(animator, animatorObject.transform);
+            rootModifier.SetAvatarheightOverride(2f);
+            Assert.That(rootModifier.NetworkScale(animatorObject.transform), Is.EqualTo(0.02f).Within(1e-6f));
         }
         finally
         {

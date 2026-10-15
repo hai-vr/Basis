@@ -1,3 +1,4 @@
+using Basis.Editor.Localization;
 using UnityEditor;
 using UnityEngine;
 
@@ -13,16 +14,16 @@ namespace Basis.Scripts.Networking.Voice.EditorTools
     /// </summary>
     public sealed class BasisVoiceWindow : BasisTabbedEditorWindow
     {
-        protected override string HeaderTitle => "Voice";
+        protected override string HeaderTitle => BasisEditorLocalization.Get("editor.voice.window.title");
 
         protected override string HeaderSubtitle =>
-            "Microphone to speaker: offline harnesses and the live receive/lipsync views.";
+            BasisEditorLocalization.Get("editor.voice.window.subtitle");
 
         [MenuItem("Basis/Debug/Voice", false, 602)]
         public static void ShowWindow()
         {
             BasisVoiceWindow w = GetWindow<BasisVoiceWindow>();
-            w.titleContent = new GUIContent("Voice");
+            w.titleContent = new GUIContent(BasisEditorLocalization.Get("editor.voice.window.title"));
             w.minSize = new Vector2(640, 560);
             w.Show();
         }

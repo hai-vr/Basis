@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Text;
 using System.Threading.Tasks;
@@ -22,6 +23,7 @@ using UnityEngine;
 /// </summary>
 [DisallowMultipleComponent]
 [RequireComponent(typeof(BasisMediaPlayer))]
+[NoAutoStaticsCleanup]
 public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMediaTickConsumer
 {
     public enum SyncedPlaybackState : byte
@@ -124,6 +126,9 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
     // one (a slow answer, a slow control grant) stands down instead of loading.
     private int setUrlOperation;
 
+    private string heldUrl;
+    private int heldRequest;
+
     // Ownership can arrive without anyone asking for it: the framework's join-time
     // ownership query silently claims an ownerless object server-side and reports the
     // joiner as its owner. Such an implicit owner holds nothing but the scene's default
@@ -142,7 +147,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
     // Answering a joiner or a state request with only the scene default would spread
     // that default over the instance; an implicit owner answers once custodians have
     // fed it the synced state, a deliberate owner always.
-    private bool CanAnswerStateQueries => IsOwnedLocallyOnClient && (deliberateControl || !string.IsNullOrEmpty(currentSyncedUrl));
+    private bool CanAnswerStateQueries => IsOwnedLocallyOnClient && (deliberateControl || !string.IsNullOrEmpty(currentSyncedUrl)) && (heldUrl == null || pendingRemoteApply);
 
     // Owner state stashed while a remote URL loads locally (resolution and the
     // engine's own open are both asynchronous): applied once the session is
@@ -374,7 +379,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
         // client holding settled synced state answers the joiner directly (the
         // BasisSyncedObject.OnPlayerJoined pattern); duplicates collapse on the joiner
         // because they all carry the same url and load nonce.
-        if (string.IsNullOrEmpty(currentSyncedUrl) || pendingRemoteApply)
+        if (string.IsNullOrEmpty(currentSyncedUrl) || pendingRemoteApply || heldUrl != null)
         {
             return;
         }
@@ -484,7 +489,9 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
     /// <summary>Load a URL for the whole room. Completes with true once the load
     /// has been issued, and with false when the user declined the URL, it was
     /// refused, a later load superseded it, or control could not be taken.</summary>
-    public Task<bool> TrySetUrlAsync(string url)
+    public Task<bool> TrySetUrlAsync(string url) => TrySetUrlAsync(url, false);
+
+    internal Task<bool> TrySetUrlAsync(string url, bool viewerAsked)
     {
         if (mediaPlayer == null || string.IsNullOrEmpty(url))
         {
@@ -497,8 +504,9 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
         var done = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         mediaPlayer.WhenApproved(
             url,
-            approved => Complete(done, SetApprovedUrl(approved, operation)),
-            () => done.TrySetResult(false));
+            approved => Complete(done, SetApprovedUrl(approved, operation, viewerAsked)),
+            _ => done.TrySetResult(false),
+            viewerAsked);
         return done.Task;
     }
 
@@ -514,10 +522,6 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
         }
     }
 
-    /// <summary><see cref="TrySetUrlAsync"/> for a URL the user has already
-    /// answered for: the one they typed into the Media Players panel.</summary>
-    internal Task<bool> SetApprovedUrl(string url) => SetApprovedUrl(url, ++setUrlOperation);
-
     /// <summary>Does nothing: the engine's sync ladder decides when a follower
     /// seeks rather than slews, from its own measurements.</summary>
     [Obsolete("The Rust engine's sync ladder owns the seek threshold; SetDriftSeekThresholdSeconds does nothing. This member only exists so content written against the C player keeps loading.")]
@@ -527,7 +531,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
         return Task.CompletedTask;
     }
 
-    private async Task<bool> SetApprovedUrl(string url, int operation)
+    private async Task<bool> SetApprovedUrl(string url, int operation, bool viewerAsked)
     {
         if (string.IsNullOrEmpty(url) || operation != setUrlOperation)
         {
@@ -547,6 +551,8 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
         suppressResyncSettleBroadcast = false;
         pendingRemoteApply = false;
         selfResyncApply = false;
+        heldUrl = null;
+        heldRequest++;
         syncedUrlFromSetUrl = true;
 
         // FullState is the only message carrying a URL, so it goes out up front rather than
@@ -559,7 +565,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
 
         BasisDebug.Log($"[BasisMedia] {mediaPlayer.name}: sharing '{BasisMediaUrlRouter.Redact(url)}'", BasisDebug.LogTag.Video);
         ClearSyncTarget();
-        mediaPlayer.LoadApprovedUrl(url);
+        mediaPlayer.LoadUrl(url, viewerAsked);
         return true;
     }
 
@@ -675,8 +681,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
         selfResyncApply = true;
         suppressResyncSettleBroadcast = true;
         ClearSyncTarget();
-        NotePendingLoadRequest();
-        mediaPlayer.LoadApprovedUrl(currentSyncedUrl);
+        OpenSyncedUrl(currentSyncedUrl, true);
     }
 
     public async Task Play()
@@ -686,7 +691,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
             return;
         }
 
-        StartOrResumeLocal(approved: false);
+        StartOrResumeLocal(true);
     }
 
     public async Task Stop()
@@ -696,6 +701,9 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
             return;
         }
 
+        pendingRemoteApply = false;
+        selfResyncApply = false;
+        suppressResyncSettleBroadcast = false;
         mediaPlayer.Stop();
         // Closing the session raises no event, so we broadcast directly.
         SendOwnerSimple(MessageId.Stop);
@@ -718,7 +726,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
             return;
         }
 
-        StartOrResumeLocal(approved: false);
+        StartOrResumeLocal(true);
     }
 
     public async Task Seek(TimeSpan position)
@@ -855,7 +863,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
                 // they answer a joiner in OnPlayerJoined (the grant is unicast, so this
                 // side still reads the object as ownerless), and duplicates collapse on
                 // the asker because every copy carries the same url and load nonce.
-                if (!IsOwnedLocallyOnClient && !pendingRemoteApply && !string.IsNullOrEmpty(currentSyncedUrl) && !HasPresentOwner())
+                if (!IsOwnedLocallyOnClient && !pendingRemoteApply && heldUrl == null && !string.IsNullOrEmpty(currentSyncedUrl) && !HasPresentOwner())
                 {
                     singleRecipient[0] = senderId;
                     SendFullStateTo(singleRecipient);
@@ -970,21 +978,18 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
             return false;
         }
 
-        float now = Time.realtimeSinceStartup;
         if (positionTicks < 0)
         {
-            positionTicks = pendingRemotePositionTicks;
-            if (pendingRemoteState == SyncedPlaybackState.Playing)
-            {
-                positionTicks += (long)((now - pendingRemoteStashedAt) * TimeSpan.TicksPerSecond);
-            }
+            positionTicks = StashedPositionTicks();
         }
 
         pendingRemoteState = state;
         pendingRemotePositionTicks = positionTicks;
-        pendingRemoteStashedAt = now;
+        pendingRemoteStashedAt = Time.realtimeSinceStartup;
         return true;
     }
+
+    private long StashedPositionTicks() => pendingRemoteState == SyncedPlaybackState.Playing ? pendingRemotePositionTicks + (long)((Time.realtimeSinceStartup - pendingRemoteStashedAt) * TimeSpan.TicksPerSecond) : pendingRemotePositionTicks;
 
     private void ApplyRemotePlay()
     {
@@ -996,7 +1001,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
         applyingRemoteCommand = true;
         try
         {
-            StartOrResumeLocal(approved: true);
+            StartOrResumeLocal(false);
         }
         finally
         {
@@ -1096,6 +1101,12 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
         {
             if (loadChanged)
             {
+                if (!string.Equals(url, heldUrl, StringComparison.Ordinal))
+                {
+                    heldUrl = null;
+                    heldRequest++;
+                }
+
                 currentSyncedUrl = url;
                 lastAppliedLoadNonce = remoteLoadNonce;
                 // Adopt the announced nonce as our own so a snapshot we later send (a
@@ -1122,8 +1133,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
                 pendingRemoteApply = true;
                 BasisDebug.Log($"[BasisMedia] {mediaPlayer.name}: loading '{BasisMediaUrlRouter.Redact(url)}' "
                     + $"from player {senderId}, {state} at {TimeSpan.FromTicks(positionTicks).TotalSeconds:F1}s", BasisDebug.LogTag.Video);
-                NotePendingLoadRequest();
-                mediaPlayer.LoadApprovedUrl(url);
+                OpenSyncedUrl(url, forceReload);
                 return;
             }
 
@@ -1135,7 +1145,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
                     break;
 
                 case SyncedPlaybackState.Playing:
-                    StartOrResumeLocal(approved: true);
+                    StartOrResumeLocal(false);
                     ApplyOwnerPosition(positionTicks, 0);
                     break;
 
@@ -1164,7 +1174,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
         // A self-initiated resync stashes our own state and then drives the reload, so it
         // has to pass this gate that an ordinary driving owner (broadcasting, not applying)
         // does not.
-        if (!pendingRemoteApply || (IsDrivingOwner && !selfResyncApply))
+        if (!pendingRemoteApply || heldUrl != null || (IsDrivingOwner && !selfResyncApply))
         {
             return;
         }
@@ -1218,13 +1228,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
                 // The owner's snapshot aged while this client resolved and opened;
                 // advance it by the elapsed time when the owner was playing. The
                 // heartbeat corrects the residual.
-                long ticks = pendingRemotePositionTicks;
-                if (pendingRemoteState == SyncedPlaybackState.Playing)
-                {
-                    ticks += (long)((Time.realtimeSinceStartup - pendingRemoteStashedAt) * TimeSpan.TicksPerSecond);
-                }
-
-                mediaPlayer.Seek(TimeSpan.FromTicks(ticks).TotalSeconds);
+                mediaPlayer.Seek(TimeSpan.FromTicks(StashedPositionTicks()).TotalSeconds);
             }
 
             // Opening a session starts it playing, so only the paused case needs acting on.
@@ -1292,10 +1296,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
 
     /// <summary>Start playing, whichever state the session is in: resume a paused
     /// one, and re-open the synced URL when there is no session left to resume.</summary>
-    /// <param name="approved">The open is the owner's choice arriving over the network,
-    /// which nobody here is asked about. The local user's own Play on an idle player is
-    /// asked, unless the URL was already approved on this player.</param>
-    private void StartOrResumeLocal(bool approved)
+    private void StartOrResumeLocal(bool viewerAsked)
     {
         switch (mediaPlayer.State)
         {
@@ -1315,17 +1316,69 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
                     return;
                 }
 
-                if (approved)
+                if (viewerAsked)
                 {
-                    mediaPlayer.LoadApprovedUrl(url);
-                }
-                else
-                {
-                    mediaPlayer.LoadUrl(url);
+                    RestampPendingRemoteState(SyncedPlaybackState.Playing, -1);
                 }
 
+                OpenSyncedUrl(url, viewerAsked);
                 return;
         }
+    }
+
+    private void OpenSyncedUrl(string url, bool viewerAsked)
+    {
+        if (!viewerAsked && string.Equals(url, heldUrl, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        int request = ++heldRequest;
+        heldUrl = url;
+        if (mediaPlayer.NeedsApproval(url))
+        {
+            BasisDebug.Log($"[BasisMedia] {mediaPlayer.name}: asking before opening '{BasisMediaUrlRouter.Redact(url)}'", BasisDebug.LogTag.Video);
+            ClearSyncTarget();
+            mediaPlayer.Stop();
+        }
+
+        mediaPlayer.WhenApproved(url, approved => OpenApprovedSyncedUrl(request, approved), viewerSaidNo => DeclineSyncedUrl(request, viewerSaidNo), viewerAsked);
+    }
+
+    private void OpenApprovedSyncedUrl(int request, string url)
+    {
+        if (request != heldRequest)
+        {
+            return;
+        }
+
+        heldUrl = null;
+        if (RestampPendingRemoteState(pendingRemoteState, -1) && IsDrivingOwner)
+        {
+            selfResyncApply = true;
+        }
+
+        NotePendingLoadRequest();
+        mediaPlayer.LoadUrl(url);
+    }
+
+    private void DeclineSyncedUrl(int request, bool viewerSaidNo)
+    {
+        if (request != heldRequest)
+        {
+            return;
+        }
+
+        selfResyncApply = false;
+        suppressResyncSettleBroadcast = false;
+        if (viewerSaidNo)
+        {
+            BasisDebug.Log($"[BasisMedia] {mediaPlayer.name}: not opening '{BasisMediaUrlRouter.Redact(heldUrl)}', the viewer declined it", BasisDebug.LogTag.Video);
+            return;
+        }
+
+        heldUrl = null;
+        pendingRemoteApply = false;
     }
 
     private void HookPlayerEvents()
@@ -1578,7 +1631,7 @@ public sealed class BasisMediaPlayerNetworking : BasisNetworkBehaviour, IBasisMe
         fullStateScratch[1] = (byte)(freshLoad ? SyncedPlaybackState.Playing
             : useStash ? pendingRemoteState : GetLocalState());
         WriteLong(fullStateScratch, 2, freshLoad ? 0L
-            : useStash ? pendingRemotePositionTicks : PositionTicks());
+            : useStash ? StashedPositionTicks() : PositionTicks());
         WriteUShort(fullStateScratch, FullStateNonceOffset, loadNonce);
         WriteSettingsBlock(fullStateScratch, FullStateSettingsOffset);
         return fullStateScratch;

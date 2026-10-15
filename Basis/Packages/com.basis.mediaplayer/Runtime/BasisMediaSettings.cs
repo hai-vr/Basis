@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System.Collections.Generic;
 using Basis;
 using Basis.Scripts.Settings;
@@ -7,6 +8,7 @@ using Basis.Scripts.Settings;
 /// rather than the framework's BasisSettingsDefaults. Values live in the
 /// user's settings file and are never world content.
 /// </summary>
+[NoAutoStaticsCleanup]
 public static class BasisMediaSettings
 {
     /// <summary>Stored value of <see cref="DecodePreference"/> for

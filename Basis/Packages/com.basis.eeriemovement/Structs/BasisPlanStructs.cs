@@ -2,7 +2,7 @@ namespace Basis.IK
 {
     public struct BasisEerieFrameFacts
     {
-        public bool hipsTracked, chestTracked, prone, seated, upright, moving, footIKSetting, trackerBendNormal, footSimReady;
+        public bool hipsTracked, chestTracked, chestFollowsBody, prone, seated, upright, moving, footIKSetting, trackerBendNormal, footSimReady;
         public bool leftLegTracked, rightLegTracked, leftFootTracked, rightFootTracked, leftKneeTracked, rightKneeTracked;
         public bool leftElbowTracked, rightElbowTracked, leftShoulderTracked, rightShoulderTracked, leftToeTracked, rightToeTracked;
         public bool leftSimFootRotation, rightSimFootRotation, leftToeBend, rightToeBend, leftElbowRoll, rightElbowRoll, leftKneeRoll, rightKneeRoll;
@@ -28,8 +28,8 @@ namespace Basis.IK
         public int chestIdx;
         public uint boundSlots;
         public BasisBoneHandle torsoFrom, torsoTo, legFrameTo, chestRef;
-        public bool prone, hipsTracked, chestTracked, chestChain, headChain, crouchOffset, gaitPelvis, lordosis, spineRom, chestTarget;
-        public bool armSwingChestFollow, leftShoulderTracked, rightShoulderTracked, leftToeTracked, rightToeTracked, leftToeDriven, rightToeDriven;
+        public bool prone, hipsTracked, chestTracked, chestChain, headChain, crouchOffset, gaitPelvis, spineRom, headPinnedHips;
+        public bool leftShoulderTracked, rightShoulderTracked, leftToeTracked, rightToeTracked, leftToeDriven, rightToeDriven;
         public bool leftToeSurface, rightToeSurface;
         public BasisEerieShoulderMode leftShoulder, rightShoulder;
         public float leftShoulderWeight, rightShoulderWeight;

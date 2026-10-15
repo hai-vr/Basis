@@ -463,9 +463,43 @@ pub fn frames_before_origin(pts_us: i64, frames: usize, rate: u32) -> usize {
     usize::try_from(drop).map_or(frames, |d| d.min(frames))
 }
 
+/// Given a chunk starting at `pts_us` with `frames` frames at `rate`, how
+/// many leading frames come before `end_us`, where the track stops. Rounds
+/// to the nearest frame: a pts held in whole microseconds is a fraction of
+/// a frame off, and the container counts whole frames.
+pub fn frames_before_end(pts_us: i64, end_us: i64, frames: usize, rate: u32) -> usize {
+    if end_us == i64::MAX {
+        return frames;
+    }
+    if pts_us >= end_us || rate == 0 {
+        return 0;
+    }
+    let kept = (i128::from(end_us) - i128::from(pts_us)) * i128::from(rate);
+    usize::try_from((kept + 500_000) / 1_000_000).map_or(frames, |k| k.min(frames))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_tracks_end_keeps_the_frames_before_it() {
+        // 6 s at 48 kHz: the last whole AAC frame starts at 286976 / 48000,
+        // a pts of 5_978_666 us once truncated, and ends on the 288000th.
+        assert_eq!(frames_before_end(5_978_666, 6_000_000, 1024, 48000), 1024);
+        assert_eq!(frames_before_end(5_978_667, 6_000_000, 2048, 48000), 1024);
+        // The padding frame after it, and anything later, goes whole.
+        assert_eq!(frames_before_end(6_000_000, 6_000_000, 1024, 48000), 0);
+        assert_eq!(frames_before_end(6_021_333, 6_000_000, 1024, 48000), 0);
+        // A chunk ending before the end keeps everything.
+        assert_eq!(frames_before_end(0, 6_000_000, 1024, 48000), 1024);
+        // No end stated.
+        assert_eq!(frames_before_end(9_000_000, i64::MAX, 1024, 48000), 1024);
+        // Exact on both sides of a frame boundary: 10 frames at 1 kHz.
+        assert_eq!(frames_before_end(0, 10_000, 64, 1000), 10);
+        assert_eq!(frames_before_end(0, 10_499, 64, 1000), 10);
+        assert_eq!(frames_before_end(0, 10_500, 64, 1000), 11);
+    }
 
     #[test]
     fn priming_frames_are_counted_conservatively() {

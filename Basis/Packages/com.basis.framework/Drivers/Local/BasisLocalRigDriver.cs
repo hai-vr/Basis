@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Common;
 using Basis.Scripts.Device_Management;
@@ -19,6 +20,7 @@ using static BasisHeightDriver;
 using Basis.Scripts.Debugging;
 namespace Basis.Scripts.Drivers
 {
+    [AutoStaticsCleanup]
     [Serializable]
     public partial class BasisLocalRigDriver
     {
@@ -37,12 +39,12 @@ namespace Basis.Scripts.Drivers
         private BasisLocalPlayer localPlayer;
         public BasisTransformMapping basisTransformMapping;
         public const int sHips = 0, sHead = 1, sLeftFoot = 2, sRightFoot = 3, sChest = 4, sLeftLowerLeg = 5, sRightLowerLeg = 6, sLeftHand = 7, sRightHand = 8, sLeftLowerArm = 9, sRightLowerArm = 10, sLeftToe = 11, sRightToe = 12, sLeftShoulder = 13, sRightShoulder = 14, SlotCount = 15;
-        static readonly string[] SlotNames =
+        [NoAutoStaticsCleanup] static readonly string[] SlotNames =
         {
             "Hips", "Head", "LeftFoot", "RightFoot", "Chest", "LeftLowerLeg", "RightLowerLeg", "LeftHand", "RightHand", "LeftLowerArm", "RightLowerArm", "LeftToe", "RightToe", "LeftShoulder", "RightShoulder",
         };
         [System.Diagnostics.Conditional("UNITY_EDITOR")]
-        [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+        [System.Diagnostics.Conditional("UNITY_INCLUDE_INSTRUMENTATION")]
         private void WatchdogCheckFilterSlots(string stage)
         {
             if (!BasisFiniteWatchdog.Enabled || !posInputs.IsCreated)
@@ -94,7 +96,7 @@ namespace Basis.Scripts.Drivers
         System.IntPtr watchdogStreamPtr;
         string watchdogStreamStage;
         [System.Diagnostics.Conditional("UNITY_EDITOR")]
-        [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+        [System.Diagnostics.Conditional("UNITY_INCLUDE_INSTRUMENTATION")]
         private unsafe void WatchdogCheckPoseStream(string stage)
         {
             if (!BasisFiniteWatchdog.Enabled || !PoseSkeleton.IsCreated)
@@ -227,7 +229,7 @@ namespace Basis.Scripts.Drivers
             }
             var measurements = new BasisBodyFitMeasurements
             {
-                PlayerEyeHeight = BasisHeightDriver.PlayerEyeHeight, PlayerArmSpan = BasisHeightDriver.PlayerArmSpan, PlayerHipHeight = BasisHeightDriver.PlayerHipHeight, AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight, AvatarArmSpan = BasisHeightDriver.AvatarArmSpan, AvatarHipHeight = BasisHeightDriver.AvatarHipHeight, AvatarLegSpan = BasisHeightDriver.AvatarLegSpan, AvatarSpineSpan = BasisHeightDriver.AvatarSpineSpan, AvatarShoulderWidth = BasisHeightDriver.AvatarShoulderWidth,
+                PlayerEyeHeight = BasisHeightDriver.SizingEyeHeight, PlayerArmSpan = BasisHeightDriver.PlayerArmSpan, AvatarEyeHeight = BasisHeightDriver.AvatarEyeHeight, AvatarArmSpan = BasisHeightDriver.AvatarArmSpan, AvatarShoulderWidth = BasisHeightDriver.AvatarShoulderWidth,
 
                 UniformScale = BasisHeightDriver.AppliedUniformScale,
             };
@@ -247,14 +249,6 @@ namespace Basis.Scripts.Drivers
             else
             {
                 BasisDebug.Log($"Body fit: arms not fitted - {BasisBodyFitCore.Describe(fit.ArmStatus)}", BasisDebug.LogTag.IK);
-            }
-            if (fit.HasBodyFit)
-            {
-                BasisDebug.Log($"Body fit: legs scaled {fit.LegScale:F4}, spine scaled {fit.TorsoScale:F4}", BasisDebug.LogTag.IK);
-            }
-            else
-            {
-                BasisDebug.Log($"Body fit: legs and spine not fitted - {BasisBodyFitCore.Describe(fit.BodyStatus)}", BasisDebug.LogTag.IK);
             }
         }
         public static BasisBodyFitResult AppliedBodyFit = BasisBodyFitResult.Identity;
@@ -371,9 +365,9 @@ namespace Basis.Scripts.Drivers
                 default: return false;
             }
         }
-        private static readonly float4[] groupPosTuning = new float4[BasisSmoothingProfiles.GroupCount], groupRotTuning = new float4[BasisSmoothingProfiles.GroupCount];
-        private static readonly bool[] groupOff = new bool[BasisSmoothingProfiles.GroupCount];
-        private static readonly BasisTrackingHardware[] groupHardware = new BasisTrackingHardware[BasisSmoothingProfiles.GroupCount];
+        [NoAutoStaticsCleanup] private static readonly float4[] groupPosTuning = new float4[BasisSmoothingProfiles.GroupCount], groupRotTuning = new float4[BasisSmoothingProfiles.GroupCount];
+        [NoAutoStaticsCleanup] private static readonly bool[] groupOff = new bool[BasisSmoothingProfiles.GroupCount];
+        [NoAutoStaticsCleanup] private static readonly BasisTrackingHardware[] groupHardware = new BasisTrackingHardware[BasisSmoothingProfiles.GroupCount];
         private static void ResolveGroupHardware()
         {
             for (int Index = 0; Index < groupHardware.Length; Index++)
@@ -642,6 +636,11 @@ namespace Basis.Scripts.Drivers
             BodyData.minHeadSpineHeight = minHeadSpineHeight * (BodyData.tposeTorsoFitScale > 0f ? BodyData.tposeTorsoFitScale : 1f);
 
             BodyData.RescaleTposeScalars(BasisEerieMovementSetup.AppliedAvatarScale());
+            float chain = BodyData.RalivRestChainLength();
+            if (chain > 0f)
+            {
+                BodyData.minHeadSpineHeight = chain;
+            }
         }
         public void Spine()
         {
@@ -686,68 +685,15 @@ namespace Basis.Scripts.Drivers
         {
             Vector3 rootUp = BasisLocalPlayer.localToWorldMatrix.MultiplyVector(Vector3.up);
             data.playerUp = rootUp.sqrMagnitude > 1e-8f ? rootUp.normalized : Vector3.up;
-            data.maxBendDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKMaxBendDeg.RawValue;
-            data.maxChestDeltaDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKMaxChestDelta.RawValue;
-            data.spineBendPitch = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineBendPitch.RawValue;
-            data.spineBendYaw = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineBendYaw.RawValue;
-            data.spineBendRoll = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineBendRoll.RawValue;
-            data.upperChestBendPitch = Basis.BasisUI.BasisSettingsDefaults.FBIKUpperChestBendPitch.RawValue;
-            data.upperChestBendYaw = Basis.BasisUI.BasisSettingsDefaults.FBIKUpperChestBendYaw.RawValue;
-            data.upperChestBendRoll = Basis.BasisUI.BasisSettingsDefaults.FBIKUpperChestBendRoll.RawValue;
-            data.chestBendPitch = Basis.BasisUI.BasisSettingsDefaults.FBIKChestBendPitch.RawValue;
-            data.chestBendYaw = Basis.BasisUI.BasisSettingsDefaults.FBIKChestBendYaw.RawValue;
-            data.chestBendRoll = Basis.BasisUI.BasisSettingsDefaults.FBIKChestBendRoll.RawValue;
-            data.neckYawShare = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckYawShare.RawValue;
-            data.spineStretchMax = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineStretchMax.RawValue;
-            data.hipHingeStartDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKHipHingeStartDeg.RawValue;
-            data.hipHingeMaxAddDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKHipHingeMaxAddDeg.RawValue;
-            data.chestSpringHz = Basis.BasisUI.BasisSettingsDefaults.FBIKChestSpringHz.RawValue;
-            data.chestSpringDamping = Basis.BasisUI.BasisSettingsDefaults.FBIKChestSpringDamping.RawValue;
-            data.spineMaxForwardDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxForwardDeg.RawValue;
-            data.spineMaxBackwardDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxBackwardDeg.RawValue;
-            data.spineMaxLateralDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineMaxLateralDeg.RawValue;
-            data.spineSquishBoost = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineSquishBoost.RawValue;
-            data.spineGazeFollow = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineGazeFollow.RawValue;
-            data.neckGazeFollow = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckGazeFollow.RawValue;
-            data.neckExtensionDamp = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckExtensionDamp.RawValue;
-            data.neckFlexionDamp = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckFlexionDamp.RawValue;
             data.moveBodyBackWhenCrouching = Basis.BasisUI.BasisSettingsDefaults.FBIKMoveBodyBackWhenCrouching.RawValue;
-            data.trunkCounterbalance = Basis.BasisUI.BasisSettingsDefaults.FBIKTrunkCounterbalance.RawValue;
-            data.spineCCDRelax = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineCCDRelax.RawValue;
-            data.spineTwistKeep = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineTwistKeep.RawValue;
-            data.spineNeckTwistKeep = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineNeckTwistKeep.RawValue;
-            data.neckMaxConeDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckMaxConeDeg.RawValue;
-            data.chestArmSwingFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingFactor.RawValue;
-            data.chestArmSwingMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKChestArmSwingMaxDeg.RawValue;
             data.lowerArmTwistFraction = Basis.BasisUI.BasisSettingsDefaults.FBIKLowerArmTwistFraction.RawValue;
             data.upperArmTwistFraction = Basis.BasisUI.BasisSettingsDefaults.FBIKUpperArmTwistFraction.RawValue;
-            data.anatDifferentialStiffness = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatDifferentialStiffness.RawValue;
-            data.anatCervicalLordosis = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatCervicalLordosis.RawValue;
-            data.anatPelvicTwistRouting = Basis.BasisUI.BasisSettingsDefaults.FBIKAnatPelvicTwistRouting.RawValue;
             data.spineAnatomicalRom = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineAnatomicalRom.RawValue;
-            data.chestIkTarget = Basis.BasisUI.BasisSettingsDefaults.FBIKChestIKTarget.RawValue;
             data.legSwivelSmoothing = Basis.BasisUI.BasisSettingsDefaults.FBIKLegSwivelSmoothing.RawValue;
             data.kneeFootPoleHold = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFootPoleHold.RawValue;
             data.kneeFootPoleConditioning = Basis.BasisUI.BasisSettingsDefaults.FBIKKneeFootPoleConditioning.RawValue;
-            data.lordosisPitchGainDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisPitchGainDeg.RawValue;
-            data.lordosisBaseDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisBaseDeg.RawValue;
-            data.lordosisNeckShare = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisNeckShare.RawValue;
-            data.lordosisMaxHeadPitchDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisMaxHeadPitchDeg.RawValue;
-            data.lordosisExtremeStartDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeStartDeg.RawValue;
-            data.lordosisExtremeFullDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeFullDeg.RawValue;
-            data.lordosisExtremeRollForwardMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeRollForwardMaxDeg.RawValue;
-            data.lordosisExtremeRollBackwardMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeRollBackwardMaxDeg.RawValue;
 
             float collisionScale = BasisHeightDriver.AvatarToDefaultRatioScaledWithAvatarScale;
-
-            data.lordosisExtremeHipsHorizontalMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsHorizontalMax.RawValue * collisionScale;
-            data.lordosisExtremeChestHorizontalMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestHorizontalMax.RawValue * collisionScale;
-            data.lordosisExtremeHipsHorizontalLookUp = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsHorizontalLookUp.RawValue * collisionScale;
-            data.lordosisExtremeChestHorizontalLookUp = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestHorizontalLookUp.RawValue * collisionScale;
-            data.lordosisExtremeHipsDownMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsDownMax.RawValue * collisionScale;
-            data.lordosisExtremeChestDownMax = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestDownMax.RawValue * collisionScale;
-            data.lordosisExtremeHipsDownLookUp = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeHipsDownLookUp.RawValue * collisionScale;
-            data.lordosisExtremeChestDownLookUp = Basis.BasisUI.BasisSettingsDefaults.FBIKLordosisExtremeChestDownLookUp.RawValue * collisionScale;
 
             data.collisionsEnabled = Basis.BasisUI.BasisSettingsDefaults.FBIKCollisionsEnabled.RawValue;
             data.protectElbow = Basis.BasisUI.BasisSettingsDefaults.FBIKProtectElbow.RawValue;
@@ -761,33 +707,8 @@ namespace Basis.Scripts.Drivers
             data.shoulderProtractionFactor = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderProtraction.RawValue;
             data.shoulderMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderMaxDeg.RawValue;
             data.shoulderTrackerBlendTime = Basis.BasisUI.BasisSettingsDefaults.FBIKShoulderTrackerBlend.RawValue;
-            data.armJointLimits = Basis.BasisUI.BasisSettingsDefaults.FBIKArmJointLimits.RawValue;
-            data.armReachSoftness = Basis.BasisUI.BasisSettingsDefaults.FBIKArmReachSoftness.RawValue;
             data.armSwivelSmoothTime = Basis.BasisUI.BasisSettingsDefaults.FBIKArmSwivelSmoothTime.RawValue;
             data.armSwivelMaxRateDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKArmSwivelMaxRate.RawValue;
-            data.armSwivelSwitchDwell = Basis.BasisUI.BasisSettingsDefaults.FBIKArmSwivelSwitchDwell.RawValue;
-            data.armPriorWeight = Basis.BasisUI.BasisSettingsDefaults.FBIKArmPriorWeight.RawValue;
-            data.armPreviousWeight = Basis.BasisUI.BasisSettingsDefaults.FBIKArmPreviousWeight.RawValue;
-            data.forearmPronationMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKForearmPronationMax.RawValue;
-            data.forearmSupinationMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKForearmSupinationMax.RawValue;
-            data.humeralInternalMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKHumeralInternalMax.RawValue;
-            data.humeralExternalMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKHumeralExternalMax.RawValue;
-            data.wristFlexionMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKWristFlexionMax.RawValue;
-            data.wristExtensionMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKWristExtensionMax.RawValue;
-            data.wristRadialMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKWristRadialMax.RawValue;
-            data.wristUlnarMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKWristUlnarMax.RawValue;
-            data.thoracicBendStiffen = Basis.BasisUI.BasisSettingsDefaults.FBIKThoracicBendStiffen.RawValue;
-            data.spineTautBandFrac = Basis.BasisUI.BasisSettingsDefaults.FBIKSpineTautBandFrac.RawValue;
-            data.bendTwistCoupling = Basis.BasisUI.BasisSettingsDefaults.FBIKBendTwistCoupling.RawValue;
-            data.neckGazeFollowMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKNeckGazeFollowMaxDeg.RawValue;
-            data.trunkCounterbalanceMaxSpineFrac = Basis.BasisUI.BasisSettingsDefaults.FBIKTrunkCounterbalanceMaxFrac.RawValue;
-            data.chestIkWeight = Basis.BasisUI.BasisSettingsDefaults.FBIKChestIkWeight.RawValue;
-            data.chestIkIterations = Mathf.Max(1, Mathf.RoundToInt(Basis.BasisUI.BasisSettingsDefaults.FBIKChestIkIterations.RawValue));
-            data.chestIkHeadRestoreSweeps = Mathf.Max(1, Mathf.RoundToInt(Basis.BasisUI.BasisSettingsDefaults.FBIKChestIkHeadRestoreSweeps.RawValue));
-            data.chestPosPullMaxDeg = Basis.BasisUI.BasisSettingsDefaults.FBIKChestPosPullMaxDeg.RawValue;
-            data.chestPullMaxDist = Basis.BasisUI.BasisSettingsDefaults.FBIKChestPullMaxDist.RawValue;
-            data.chestHeadBudget = BasisEerieMovementSetup.ChestHeadBudgetMeters;
-            data.chestFollowChestShare = Basis.BasisUI.BasisSettingsDefaults.FBIKChestFollowChestShare.RawValue;
             data.trackedKneeSwivelMinCutoffHz = Basis.BasisUI.BasisSettingsDefaults.FBIKTrackedKneeSwivelMinCutoffHz.RawValue;
             data.trackedKneeSwivelBeta = Basis.BasisUI.BasisSettingsDefaults.FBIKTrackedKneeSwivelBeta.RawValue;
             data.trackedKneeSwivelDerivCutoffHz = Basis.BasisUI.BasisSettingsDefaults.FBIKTrackedKneeSwivelDerivCutoffHz.RawValue;
@@ -1013,6 +934,7 @@ namespace Basis.Scripts.Drivers
             facts.upright = BasisLocalPlayspaceMover.FlipUpSign > 0f;
             facts.hipsTracked = fbt && BasisLocalBoneDriver.HipsControl.HasTracked == BasisHasTracked.HasTracker;
             facts.chestTracked = fbt && BasisLocalBoneDriver.ChestControl.HasTracked == BasisHasTracked.HasTracker;
+            facts.chestFollowsBody = facts.chestTracked && BasisLocalBoneDriver.ChestControl.TrackerFollowsBody;
             facts.leftFootTracked = leftFoot;
             facts.rightFootTracked = rightFoot;
             facts.leftLegTracked = leftFoot || (fbt && BasisLocalBoneDriver.LeftUpperLegControl.HasTracked == BasisHasTracked.HasTracker);
@@ -1143,7 +1065,7 @@ namespace Basis.Scripts.Drivers
             framePlayerUpDirection = framePlayerUpScale > 1e-6f ? playerUpScaled / framePlayerUpScale : Vector3.up;
             if (trackersDisabled)
             {
-                facts.hipsTracked = facts.chestTracked = facts.leftLegTracked = facts.rightLegTracked = facts.leftFootTracked = facts.rightFootTracked = facts.leftKneeTracked = facts.rightKneeTracked = false;
+                facts.hipsTracked = facts.chestTracked = facts.chestFollowsBody = facts.leftLegTracked = facts.rightLegTracked = facts.leftFootTracked = facts.rightFootTracked = facts.leftKneeTracked = facts.rightKneeTracked = false;
                 facts.leftElbowTracked = facts.rightElbowTracked = facts.leftShoulderTracked = facts.rightShoulderTracked = facts.leftToeTracked = facts.rightToeTracked = false;
             }
             facts.leftSimFootRotation = BasisEeriePlanner.footRotationFromSim && facts.footSimReady && TryFootTargetRotation(footDriver.LeftFootRotation, data.offsetRotationLeftFoot, out frameLeftSimFootRotation);
@@ -1230,8 +1152,10 @@ namespace Basis.Scripts.Drivers
                 }
                 else
                 {
-                    float headLocalY = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4((Vector3)pOut[sHead]).y;
-                    data.crouchDepth = Mathf.Max(0f, (restHeadLocalY - headLocalY) * framePlayerUpScale);
+                    Matrix4x4 worldToPlayer = BasisLocalPlayer.localToWorldMatrix.inverse;
+                    float headDrop = restHeadLocalY - worldToPlayer.MultiplyPoint3x4((Vector3)pOut[sHead]).y;
+                    float eyeDrop = BasisLocalBoneDriver.EyeControl != null ? BasisLocalBoneDriver.EyeControl.TposeLocalScaled.position.y - worldToPlayer.MultiplyPoint3x4(BasisLocalBoneDriver.EyeControl.OutgoingWorldData.position).y : headDrop;
+                    data.crouchDepth = Mathf.Max(0f, Mathf.Min(headDrop, eyeDrop) * framePlayerUpScale);
                 }
                 Vector3 chestPos = pOut[sChest];
                 Quaternion chestRot = rOut[sChest];

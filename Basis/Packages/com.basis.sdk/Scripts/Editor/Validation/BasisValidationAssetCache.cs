@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,15 +19,13 @@ using UnityEngine.Rendering;
 /// including by the validators' own auto-fixes, which reimport — so a stale importer is never
 /// handed out. <see cref="Invalidated"/> lets open inspectors know they should look again.</para>
 /// </summary>
+[NoAutoStaticsCleanup]
 public static class BasisValidationAssetCache
 {
     private static readonly Dictionary<EntityId, string> AssetPaths = new Dictionary<EntityId, string>(128);
     private static readonly Dictionary<string, AssetImporter> Importers = new Dictionary<string, AssetImporter>(128);
     private static readonly Dictionary<EntityId, int[]> ShaderTextureProperties = new Dictionary<EntityId, int[]>(32);
     private static readonly List<int> PropertyScratch = new List<int>(32);
-
-    private static BasisAssetBundleObject _assetBundleObject;
-    private static bool _assetBundleObjectResolved;
 
     // 0 = not looked yet, 1 = present, 2 = missing. The lookup is a disk hit and the answer cannot
     // change without restarting the editor, so it is worth doing exactly once.
@@ -40,8 +39,6 @@ public static class BasisValidationAssetCache
         AssetPaths.Clear();
         Importers.Clear();
         ShaderTextureProperties.Clear();
-        _assetBundleObject = null;
-        _assetBundleObjectResolved = false;
 
         try
         {
@@ -130,19 +127,6 @@ public static class BasisValidationAssetCache
         int[] ids = PropertyScratch.Count == 0 ? Array.Empty<int>() : PropertyScratch.ToArray();
         ShaderTextureProperties[key] = ids;
         return ids;
-    }
-
-    public static BasisAssetBundleObject AssetBundleObject
-    {
-        get
-        {
-            if (!_assetBundleObjectResolved)
-            {
-                _assetBundleObjectResolved = true;
-                _assetBundleObject = AssetDatabase.LoadAssetAtPath<BasisAssetBundleObject>(BasisAssetBundleObject.AssetBundleObject);
-            }
-            return _assetBundleObject;
-        }
     }
 
     /// <summary>

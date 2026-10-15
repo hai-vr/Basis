@@ -1,3 +1,4 @@
+using Basis.Editor.Localization;
 using System.IO;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -27,7 +28,7 @@ public class BasisMediaPlayerAudioInspector : Editor
         string package = PackagePath;
         if (string.IsNullOrEmpty(package))
         {
-            _root.Add(new HelpBox("Could not resolve the package path for the media player editor assembly.", HelpBoxMessageType.Error));
+            _root.Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.inspector.packagePathMissing"), HelpBoxMessageType.Error));
             return _root;
         }
 
@@ -37,10 +38,11 @@ public class BasisMediaPlayerAudioInspector : Editor
             Path.Combine(package, "Editor/StyleSheets/MediaPlayerSDK.uss").Replace('\\', '/'));
         if (tree == null)
         {
-            _root.Add(new HelpBox("MediaPlayerAudioSDK.uxml missing.", HelpBoxMessageType.Error));
+            _root.Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.inspector.uxmlMissing", "MediaPlayerAudioSDK.uxml"), HelpBoxMessageType.Error));
             return _root;
         }
         tree.CloneTree(_root);
+        BasisEditorLocalization.LocalizeTree(_root, "editor.mediaPlayer.uxml.audio.");
         if (sheet != null) _root.styleSheets.Add(sheet);
 
         BindByName("OutputsField", "Outputs");
@@ -55,8 +57,7 @@ public class BasisMediaPlayerAudioInspector : Editor
 
         _root.Insert(0, new BasisMediaPlayerTapOrdering.Notice(
             () => (target as BasisMediaPlayerAudio)?.Outputs,
-            names => $"Audio filters on {string.Join(", ", names)} won't be heard: the tap that " +
-                     "generates the stream has to sit above them in the component list."));
+            names => BasisEditorLocalization.Get("editor.mediaPlayer.audio.filtersSilent", string.Join(", ", names))));
 
         return _root;
     }

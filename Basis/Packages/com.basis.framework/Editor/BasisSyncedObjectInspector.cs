@@ -1,3 +1,4 @@
+using Basis.Editor.Localization;
 using Basis.Scripts.Networking.Sync;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -12,11 +13,11 @@ public class BasisSyncedObjectInspector : BasisDocInspector_UI
         var root = new VisualElement();
 
         root.Add(BasisSyncInspectorUI.Header(
-            "Basis Synced Object",
-            "Code-first value sync. Declare fields in Awake (RegisterPosition / RegisterFloat / RegisterColor / ...), then LocalSet on the owner and RemoteGet on every other client."));
+            BasisEditorLocalization.Get("editor.sync.object.title"),
+            BasisEditorLocalization.Get("editor.sync.object.description")));
 
         var note = new HelpBox(
-            "Synced fields are declared in code, so they don't show here. This panel configures the networking shared by all of them. Use BasisSyncedTransform instead if you only need to sync a transform.",
+            BasisEditorLocalization.Get("editor.sync.object.note"),
             HelpBoxMessageType.Info);
         note.style.marginBottom = 8;
         root.Add(note);

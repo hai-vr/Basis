@@ -1418,6 +1418,141 @@ fn a_seek_past_the_last_frame_lands_on_it_and_ends() {
     session.close();
 }
 
+/// With no audio to play out, the end waits for the last frame's own time on
+/// screen, and position stops at the duration. The fixture is 5 s at 4 fps, so
+/// its last frame starts at 4.75 s and ends at 5 s.
+#[test]
+fn a_video_only_session_ends_at_its_duration() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../fixtures/h264-4fps-320x180.mp4")
+        .to_string_lossy()
+        .into_owned();
+    let mut session = Session::open(OpenRequest::new(path));
+    let shared = session.shared().clone();
+    assert!(
+        wait_for(Duration::from_secs(10), || {
+            shared.state.load(Ordering::Relaxed) == State::Playing as u32
+        }),
+        "never reached Playing (state {}, error {})",
+        shared.state.load(Ordering::Relaxed),
+        shared.last_error.load(Ordering::Relaxed),
+    );
+    session.seek(MediaTime::from_millis(4_000));
+    assert!(
+        wait_for(Duration::from_secs(10), || {
+            shared.state.load(Ordering::Relaxed) == State::Ended as u32
+        }),
+        "the session never ended (state {}, position {})",
+        shared.state.load(Ordering::Relaxed),
+        shared.position_us.load(Ordering::Relaxed),
+    );
+    assert_eq!(shared.duration_us.load(Ordering::Relaxed), 5_000_000);
+    assert_eq!(
+        shared.position_us.load(Ordering::Relaxed),
+        5_000_000,
+        "the session did not end at its last frame's end"
+    );
+    session.close();
+}
+
+/// A file trimmed by its edit lists to 3.9 s of six: the picture stops at
+/// the last frame shown before then (3.867 s, the 117th), the sound stops at
+/// exactly 3.9 s of samples, and position at the end. The P-frame at 3.9 s
+/// is decoded, since the frame before it depends on it, but never shown.
+#[test]
+fn a_trimmed_file_plays_only_what_its_edit_list_presents() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../fixtures/h264-aac-edit-trimmed.mp4")
+        .to_string_lossy()
+        .into_owned();
+    let mut session = Session::open(OpenRequest::new(path));
+    let shared = session.shared().clone();
+    let px = session.pipeline().clone();
+
+    let mut pulled = 0u64;
+    let mut buf = vec![0f32; 2048];
+    let mut epoch: Option<Instant> = None;
+    let mut latest_shown = i64::MIN;
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_secs(30) {
+        let state = shared.state.load(Ordering::Relaxed);
+        assert_ne!(
+            state,
+            State::Error as u32,
+            "error {}",
+            shared.last_error.load(Ordering::Relaxed)
+        );
+        latest_shown = latest_shown.max(px.presented_pts_us.load(Ordering::Relaxed));
+        if state == State::Ended as u32 {
+            break;
+        }
+        let rate = shared.audio_rate.load(Ordering::Relaxed);
+        let channels = shared.audio_channels.load(Ordering::Relaxed).max(1);
+        if rate > 0 && state == State::Playing as u32 {
+            let at = *epoch.get_or_insert_with(Instant::now);
+            let budget = at.elapsed().as_micros() as u64 * u64::from(rate) / 1_000_000 - pulled;
+            if budget as usize >= buf.len() / channels as usize {
+                pulled += Session::read_audio(&px, &mut buf) as u64;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+
+    assert_eq!(shared.state.load(Ordering::Relaxed), State::Ended as u32);
+    assert_eq!(latest_shown, 3_866_666, "the last picture shown");
+    // Where the last sound handed to the consumer ends, within a frame at
+    // 48 kHz. A starved consumer lets the ring discard a chunk it held too
+    // long, so the exact end is only asserted where nothing was discarded.
+    let sound_end = px.audio_shared.playhead_pts_us.load(Ordering::Relaxed);
+    assert!(sound_end <= 3_900_021, "sound played on to {sound_end}");
+    let ring_drops = session
+        .diag()
+        .stage(media_diag::Stage::AudioRing)
+        .drops
+        .load(Ordering::Relaxed);
+    if ring_drops == 0 {
+        assert!(sound_end >= 3_899_979, "sound stopped at {sound_end}");
+    }
+    assert_eq!(shared.duration_us.load(Ordering::Relaxed), 3_900_000);
+    assert_eq!(shared.position_us.load(Ordering::Relaxed), 3_900_000);
+    session.close();
+}
+
+/// A seek into the tail an edit list trims lands on the last picture shown
+/// before the end, not on the decoded one past it, and ends from there.
+#[test]
+fn a_seek_into_a_trimmed_tail_lands_on_the_last_picture_shown() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../fixtures/h264-aac-edit-trimmed.mp4")
+        .to_string_lossy()
+        .into_owned();
+    let mut session = Session::open(OpenRequest::new(path));
+    let shared = session.shared().clone();
+    assert!(
+        wait_for(Duration::from_secs(10), || {
+            shared.state.load(Ordering::Relaxed) == State::Playing as u32
+        }),
+        "never reached Playing (state {}, error {})",
+        shared.state.load(Ordering::Relaxed),
+        shared.last_error.load(Ordering::Relaxed),
+    );
+    session.seek(MediaTime::from_millis(3_950));
+    assert!(
+        wait_for(Duration::from_secs(10), || {
+            shared.state.load(Ordering::Relaxed) == State::Ended as u32
+        }),
+        "the session never ended (state {}, position {})",
+        shared.state.load(Ordering::Relaxed),
+        shared.position_us.load(Ordering::Relaxed),
+    );
+    assert_eq!(
+        session.pipeline().presented_pts_us.load(Ordering::Relaxed),
+        3_866_666
+    );
+    assert!(shared.position_us.load(Ordering::Relaxed) <= 3_900_000);
+    session.close();
+}
+
 /// Two seeks queued while the demux thread is busy land on the second: the
 /// first is superseded, not run after it.
 #[test]

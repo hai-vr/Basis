@@ -55,6 +55,7 @@ namespace UnityEngine.Rendering.Universal
             public override string name => k_UpscalerName_Auto;
             public override bool isTemporal => false;
             public override bool supportsSharpening => false;
+            public override bool supportsAlphaUpscaling => true;
             // RecordRenderGraph is an empty implementation from AbstractUpscaler
         }
         internal class BilinearUpscaler : AbstractUpscaler
@@ -63,6 +64,7 @@ namespace UnityEngine.Rendering.Universal
             public override string name => k_UpscalerName_Linear;
             public override bool isTemporal => false;
             public override bool supportsSharpening => false;
+            public override bool supportsAlphaUpscaling => true;
         }
         internal class PointUpscaler : AbstractUpscaler
         {
@@ -70,6 +72,7 @@ namespace UnityEngine.Rendering.Universal
             public override string name => k_UpscalerName_Point;
             public override bool isTemporal => false;
             public override bool supportsSharpening => false;
+            public override bool supportsAlphaUpscaling => true;
         }
         internal class FSR1Upscaler : AbstractUpscaler
         {
@@ -78,6 +81,7 @@ namespace UnityEngine.Rendering.Universal
             public override bool isSupportedOnDevice => FSRUtils.IsSupported();
             public override bool isTemporal => false;
             public override bool supportsSharpening => true;
+            public override bool supportsAlphaUpscaling => true;
             // the FSR1 class is only for registration / unifying API for choosing an upscaler.
             // The pass execution logic is still carried out by the internal Fsr1UpscalePostProcessPass.cs
         }
@@ -341,6 +345,8 @@ namespace UnityEngine.Rendering.Universal
 #if ENABLE_UPSCALER_FRAMEWORK
         internal static Upscaling upscaling;
 
+        public static Func<string, bool> skipUpscaler;
+
         /// <summary>
         /// Gets the list of available upscaler IDs registered with the upscaling framework.
         /// </summary>
@@ -372,6 +378,47 @@ namespace UnityEngine.Rendering.Universal
         /// The name of the active upscaler, or an empty string if the upscaling framework is null.
         /// </value>
         public string activeUpscalerName => upscaling?.activeUpscaler?.name ?? string.Empty;
+
+        public IUpscaler GetUpscaler(string upscalerId) => upscaling?.GetIUpscalerById(upscalerId);
+
+        public UpscalerOptions GetUpscalerOptions(string upscalerId)
+        {
+            IUpscaler upscaler = GetUpscaler(upscalerId);
+            return upscaler != null ? upscaling.GetGlobalOptions(upscaler) : null;
+        }
+
+        internal static IUpscaler GetCameraUpscaler(Camera camera)
+        {
+            if (upscaling == null || camera == null || camera.targetTexture != null)
+                return null;
+
+            return camera.TryGetComponent(out UniversalAdditionalCameraData additionalCameraData) && additionalCameraData.renderPostProcessing ? upscaling.activeUpscaler : null;
+        }
+
+        static Upscaling CreateUpscaling(UniversalRenderPipelineAsset asset)
+        {
+            var registry = UpscalerRegistry.s_RegisteredUpscalers;
+            var skipped = new List<KeyValuePair<string, (Type, Type, string)>>();
+            if (skipUpscaler != null)
+            {
+                foreach (var registered in registry)
+                {
+                    if (skipUpscaler(registered.Key))
+                        skipped.Add(registered);
+                }
+            }
+            foreach (var registered in skipped)
+                registry.Remove(registered.Key);
+            try
+            {
+                return new Upscaling(asset.upscalerOptions, k_EmbeddedUpscalerTypes, k_UpscalerSortOrder);
+            }
+            finally
+            {
+                foreach (var registered in skipped)
+                    registry[registered.Key] = registered.Value;
+            }
+        }
 #endif
 
         /// <summary>
@@ -475,7 +522,7 @@ namespace UnityEngine.Rendering.Universal
             //       until we address the unification of HDRP/URP texture binding for the blitter.
             RegisterBuiltinUpscalers.Register();
 
-            upscaling = new Upscaling(asset.upscalerOptions, k_EmbeddedUpscalerTypes, k_UpscalerSortOrder);
+            upscaling = CreateUpscaling(asset);
 
             // Resolved once here rather than per frame, so a runtime SetActiveUpscaler() call isn't overwritten.
             // Editing the asset recreates the pipeline via RenderPipelineAsset.OnValidate(), which re-resolves.
@@ -1882,6 +1929,8 @@ namespace UnityEngine.Rendering.Universal
             using var profScope = new ProfilingScope(Profiling.Pipeline.initializeCameraData);
 
             var renderer = GetRenderer(camera, additionalCameraData);
+            if (frameData.Contains<UniversalCameraData>())
+                frameData.Dispose();
             UniversalCameraData cameraData = frameData.Create<UniversalCameraData>();
             cameraData.renderer = renderer;
 
@@ -1899,7 +1948,7 @@ namespace UnityEngine.Rendering.Universal
             // If upscaling is active, set the scaled width and height
             InitializeScaledDimensions(camera, cameraData);
 #if ENABLE_UPSCALER_FRAMEWORK
-            IUpscaler activeUpscaler = upscaling.activeUpscaler;
+            IUpscaler activeUpscaler = GetCameraUpscaler(camera);
             bool upscalerDictatesResolution = TryGetUpscalerDictatedResolution(cameraData, activeUpscaler, out var upscalerRenderSize);
             if (upscalerDictatesResolution)
             {
@@ -2030,7 +2079,7 @@ namespace UnityEngine.Rendering.Universal
             // ImageUpscalingFilter is deprecated, we now track by upscaler id.
             // The active upscaler is the highest priority one supported on this device, so resolve from it rather than
             // from the serialized selection.
-            IUpscaler activeUpscaler = upscaling.activeUpscaler;
+            IUpscaler activeUpscaler = GetCameraUpscaler(baseCamera);
             string selectedUpscalerId = activeUpscaler != null ? activeUpscaler.upscalerId : k_UpscalerId_Auto;
             string resolvedUpscalerId = ResolveAutoUpscaler(cameraData.pixelWidth, cameraData.pixelHeight, cameraData.renderScale, selectedUpscalerId);
             cameraData.resolvedUpscalerHash = Shader.PropertyToID(resolvedUpscalerId);
@@ -2169,6 +2218,11 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.requiresOpaqueTexture = false;
             }
 
+            // Apply post-processing settings to the alpha output.
+            // cameraData.isAlphaOutputEnabled is set based on target alpha channel availability on create. Target can be a RenderTexture or the back-buffer.
+            bool allowAlphaOutput = !cameraData.postProcessEnabled || (cameraData.postProcessEnabled && settings.allowPostProcessAlphaOutput);
+            cameraData.isAlphaOutputEnabled = cameraData.isAlphaOutputEnabled && allowAlphaOutput;
+
             // NOTE: TAA depends on XR modifications of cameraTargetDescriptor.
             if (additionalCameraData != null)
                 UpdateTemporalAAData(cameraData, additionalCameraData);
@@ -2195,7 +2249,7 @@ namespace UnityEngine.Rendering.Universal
             Matrix4x4 jitterMat = Matrix4x4.identity;
             // Depends on the cameraTargetDesc, size and MSAA also XR modifications of those.
 #if ENABLE_UPSCALER_FRAMEWORK
-            IUpscaler activeUpscaler = upscaling.activeUpscaler;
+            IUpscaler activeUpscaler = GetCameraUpscaler(camera);
             if (cameraData.IsTemporalAAEnabled() && activeUpscaler != null)
             {
                 // Upscalers compute jitter with resolution-dependent parameters.
@@ -2241,11 +2295,6 @@ namespace UnityEngine.Rendering.Universal
 
             cameraData.stackAnyPostProcessingEnabled = cameraData.postProcessEnabled;
             cameraData.stackLastCameraOutputToHDR = cameraData.isHDROutputActive;
-
-            // Apply post-processing settings to the alpha output.
-            // cameraData.isAlphaOutputEnabled is set based on target alpha channel availability on create. Target can be a RenderTexture or the back-buffer.
-            bool allowAlphaOutput = !cameraData.postProcessEnabled || (cameraData.postProcessEnabled && settings.allowPostProcessAlphaOutput);
-            cameraData.isAlphaOutputEnabled = cameraData.isAlphaOutputEnabled && allowAlphaOutput;
         }
 
         static UniversalRenderingData CreateRenderingData(ContextContainer frameData, UniversalRenderPipelineAsset settings, CommandBuffer cmd, RenderingMode? renderingMode, ScriptableRenderer renderer)
@@ -2461,8 +2510,8 @@ namespace UnityEngine.Rendering.Universal
 
 #if ENABLE_UPSCALER_FRAMEWORK
             // Disable upscaler when TPS is active
-            postProcessingData.activeUpscaler = cameraData.IsTemporalPixelSynthesisActive() ? null : upscaling.activeUpscaler;
-            postProcessingData.activeUpscalerIsEmbedded = upscaling.activeUpscalerIsEmbedded;
+            postProcessingData.activeUpscaler = cameraData.IsTemporalPixelSynthesisActive() ? null : GetCameraUpscaler(cameraData.camera);
+            postProcessingData.activeUpscalerIsEmbedded = postProcessingData.activeUpscaler != null && upscaling.activeUpscalerIsEmbedded;
 #endif
 
             return postProcessingData;
@@ -2535,6 +2584,19 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.stpHistory = additionalCameraData.historyManager.GetHistoryForWrite<StpHistory>();
             }
 
+            bool needsAlphaUpscaleHistory = cameraData.isAlphaOutputEnabled;
+#if ENABLE_UPSCALER_FRAMEWORK
+            IUpscaler activeUpscaler = GetCameraUpscaler(cameraData.camera);
+            needsAlphaUpscaleHistory &= activeUpscaler != null && activeUpscaler.isTemporal && !activeUpscaler.supportsAlphaUpscaling;
+#else
+            needsAlphaUpscaleHistory &= cameraData.IsSTPEnabled();
+#endif
+            if (needsAlphaUpscaleHistory)
+            {
+                additionalCameraData.historyManager.RequestAccess<AlphaUpscaleHistory>();
+                cameraData.alphaUpscaleHistory = additionalCameraData.historyManager.GetHistoryForWrite<AlphaUpscaleHistory>();
+            }
+
             // Update TAA settings
             ref var taaSettings = ref additionalCameraData.taaSettings;
             cameraData.taaSettings = taaSettings;
@@ -2578,6 +2640,17 @@ namespace UnityEngine.Rendering.Universal
                 // In the case where STP is requested, but TAA gets disabled for various reasons so STP is disabled, we should release the STP history resources
                 if (cameraData.IsSTPRequested())
                     cameraData.stpHistory?.Reset();
+            }
+
+            // The alpha history is common to all color-only temporal upscalers,
+            // so it is updated outside the per-upscaler branches above.
+            if (cameraData.alphaUpscaleHistory != null)
+            {
+                bool alphaXrMultipassEnabled = false;
+#if ENABLE_VR && ENABLE_XR_MODULE
+                alphaXrMultipassEnabled = cameraData.xr.enabled && !cameraData.xr.singlePassEnabled;
+#endif
+                cameraData.alphaUpscaleHistory.Update(cameraData, alphaXrMultipassEnabled);
             }
         }
 
@@ -3052,7 +3125,7 @@ namespace UnityEngine.Rendering.Universal
                 cameraData.cameraTargetDescriptor.width = Mathf.Max(1, (int)(cameraData.pixelWidth * cameraData.renderScale));
                 cameraData.cameraTargetDescriptor.height = Mathf.Max(1, (int)(cameraData.pixelHeight * cameraData.renderScale));
 #if ENABLE_UPSCALER_FRAMEWORK
-                IUpscaler activeUpscaler = upscaling.activeUpscaler;
+                IUpscaler activeUpscaler = GetCameraUpscaler(cameraData.camera);
                 if (TryGetUpscalerDictatedResolution(cameraData, activeUpscaler, out var upscalerRenderSize))
                 {
                     cameraData.cameraTargetDescriptor.width = Mathf.Max(1, upscalerRenderSize.x);

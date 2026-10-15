@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Basis.BasisUI;
+using Basis.Editor.Localization;
 using UnityEditor;
 using UnityEngine;
 
@@ -57,7 +58,7 @@ public class BasisLocalizationEditorWindow : EditorWindow
     [MenuItem("Basis/Settings/Localization/Translation Editor", false, 440)]
     public static void Open()
     {
-        GetWindow<BasisLocalizationEditorWindow>("Basis Localization");
+        GetWindow<BasisLocalizationEditorWindow>(BasisEditorLocalization.Get("editor.localizationWindow.windowTitle"));
     }
 
     private static string LanguagesDirectory =>
@@ -76,8 +77,8 @@ public class BasisLocalizationEditorWindow : EditorWindow
 
     private void OnGUI()
     {
-        BasisEditorUI.Header("Translations",
-            "Every localization key across the packages, and which languages still need it.");
+        BasisEditorUI.Header(BasisEditorLocalization.Get("editor.localizationWindow.header"),
+            BasisEditorLocalization.Get("editor.localizationWindow.subtitle"));
 
         DrawToolbar();
         EditorGUILayout.Space(4);
@@ -85,8 +86,7 @@ public class BasisLocalizationEditorWindow : EditorWindow
         if (_loaded == null)
         {
             EditorGUILayout.HelpBox(
-                $"No language file loaded. Expected files under {LanguagesRelativePath}/. " +
-                "Use the New button to create one.",
+                BasisEditorLocalization.Get("editor.localizationWindow.noLanguageFile", LanguagesRelativePath),
                 MessageType.Info);
             return;
         }
@@ -106,7 +106,7 @@ public class BasisLocalizationEditorWindow : EditorWindow
     {
         using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
         {
-            if (GUILayout.Button("Refresh", EditorStyles.toolbarButton, GUILayout.Width(70)))
+            if (GUILayout.Button(BasisEditorLocalization.Get("editor.common.refresh"), EditorStyles.toolbarButton, GUILayout.Width(70)))
             {
                 RefreshLanguageList();
                 LoadEnglishSnapshot();
@@ -136,18 +136,18 @@ public class BasisLocalizationEditorWindow : EditorWindow
 
             using (new EditorGUI.DisabledScope(!_dirty))
             {
-                if (GUILayout.Button("Save", EditorStyles.toolbarButton, GUILayout.Width(60)))
+                if (GUILayout.Button(BasisEditorLocalization.Get("editor.common.save"), EditorStyles.toolbarButton, GUILayout.Width(60)))
                 {
                     SaveSelectedLanguage();
                 }
             }
 
-            if (GUILayout.Button("New…", EditorStyles.toolbarButton, GUILayout.Width(60)))
+            if (GUILayout.Button(BasisEditorLocalization.Get("editor.localizationWindow.new"), EditorStyles.toolbarButton, GUILayout.Width(60)))
             {
                 CreateNewLanguageDialog();
             }
 
-            if (GUILayout.Button("Scan Code", EditorStyles.toolbarButton, GUILayout.Width(90)))
+            if (GUILayout.Button(BasisEditorLocalization.Get("editor.localizationWindow.scanCode"), EditorStyles.toolbarButton, GUILayout.Width(90)))
             {
                 ScanReferencedKeys();
             }
@@ -161,23 +161,23 @@ public class BasisLocalizationEditorWindow : EditorWindow
         using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
         {
             string fileName = Path.GetFileName(_loadedPath);
-            EditorGUILayout.LabelField("File", fileName);
+            EditorGUILayout.LabelField(BasisEditorLocalization.Get("editor.localizationWindow.file"), fileName);
 
-            string newCode = EditorGUILayout.TextField("Code", _loaded.code ?? string.Empty);
+            string newCode = EditorGUILayout.TextField(BasisEditorLocalization.Get("editor.localizationWindow.code"), _loaded.code ?? string.Empty);
             if (newCode != _loaded.code)
             {
                 _loaded.code = newCode;
                 _dirty = true;
             }
 
-            string newName = EditorGUILayout.TextField("Native Name", _loaded.nativeName ?? string.Empty);
+            string newName = EditorGUILayout.TextField(BasisEditorLocalization.Get("editor.localizationWindow.nativeName"), _loaded.nativeName ?? string.Empty);
             if (newName != _loaded.nativeName)
             {
                 _loaded.nativeName = newName;
                 _dirty = true;
             }
 
-            EditorGUILayout.LabelField("Entries", _loaded.entries.Count.ToString());
+            EditorGUILayout.LabelField(BasisEditorLocalization.Get("editor.localizationWindow.entries"), _loaded.entries.Count.ToString());
         }
     }
 
@@ -185,13 +185,13 @@ public class BasisLocalizationEditorWindow : EditorWindow
 
     private void DrawEntriesTable()
     {
-        BasisEditorUI.SectionTitle("Entries");
+        BasisEditorUI.SectionTitle(BasisEditorLocalization.Get("editor.localizationWindow.entries"));
 
         using (new EditorGUILayout.HorizontalScope())
         {
-            EditorGUILayout.LabelField("Filter", GUILayout.Width(40));
+            EditorGUILayout.LabelField(BasisEditorLocalization.Get("editor.localizationWindow.filter"), GUILayout.Width(40));
             _filter = EditorGUILayout.TextField(_filter);
-            if (GUILayout.Button("Clear", GUILayout.Width(50)))
+            if (GUILayout.Button(BasisEditorLocalization.Get("editor.common.clear"), GUILayout.Width(50)))
             {
                 _filter = string.Empty;
                 GUI.FocusControl(null);
@@ -252,12 +252,12 @@ public class BasisLocalizationEditorWindow : EditorWindow
     {
         using (new EditorGUILayout.HorizontalScope(EditorStyles.helpBox))
         {
-            EditorGUILayout.LabelField("Add key", GUILayout.Width(60));
+            EditorGUILayout.LabelField(BasisEditorLocalization.Get("editor.localizationWindow.addKey"), GUILayout.Width(60));
             _newKey = EditorGUILayout.TextField(_newKey);
 
             using (new EditorGUI.DisabledScope(string.IsNullOrEmpty(_newKey)))
             {
-                if (GUILayout.Button("Add", GUILayout.Width(60)))
+                if (GUILayout.Button(BasisEditorLocalization.Get("editor.common.add"), GUILayout.Width(60)))
                 {
                     AddKey(_newKey);
                     _newKey = string.Empty;
@@ -271,21 +271,21 @@ public class BasisLocalizationEditorWindow : EditorWindow
 
     private void DrawDiagnosticsPanel()
     {
-        BasisEditorUI.SectionTitle("Diagnostics");
+        BasisEditorUI.SectionTitle(BasisEditorLocalization.Get("editor.localizationWindow.diagnostics"));
 
         using (new EditorGUILayout.HorizontalScope())
         {
-            _showMissingFromCode = GUILayout.Toggle(_showMissingFromCode, "Referenced in code but missing", EditorStyles.miniButton);
-            _showUntranslated = GUILayout.Toggle(_showUntranslated, "Missing translations vs. English", EditorStyles.miniButton);
+            _showMissingFromCode = GUILayout.Toggle(_showMissingFromCode, BasisEditorLocalization.Get("editor.localizationWindow.referencedMissing"), EditorStyles.miniButton);
+            _showUntranslated = GUILayout.Toggle(_showUntranslated, BasisEditorLocalization.Get("editor.localizationWindow.missingTranslations"), EditorStyles.miniButton);
         }
 
         if (_lastScanTime == default)
         {
-            BasisEditorUI.Readout("Click \"Scan Code\" to search *.cs files for BasisLocalization.Get(\"...\") calls.");
+            BasisEditorUI.Readout(BasisEditorLocalization.Get("editor.localizationWindow.scanHint", BasisEditorLocalization.Get("editor.localizationWindow.scanCode")));
         }
         else
         {
-            BasisEditorUI.Note($"Last scan: {_lastScanTime:HH:mm:ss} — {_referencedKeys.Count} keys referenced in code.");
+            BasisEditorUI.Note(BasisEditorLocalization.Get("editor.localizationWindow.lastScan", _lastScanTime, _referencedKeys.Count));
         }
 
         var loadedKeys = new HashSet<string>(_loaded.entries
@@ -301,10 +301,10 @@ public class BasisLocalizationEditorWindow : EditorWindow
                 .OrderBy(k => k)
                 .ToList();
 
-            BasisEditorUI.SectionTitle($"Referenced in code but missing here ({missingFromCode.Count})");
+            BasisEditorUI.SectionTitle(BasisEditorLocalization.Get("editor.localizationWindow.referencedMissingHere", missingFromCode.Count));
             if (missingFromCode.Count == 0)
             {
-                BasisEditorUI.Note("  (none)");
+                BasisEditorUI.Note("  " + BasisEditorLocalization.Get("editor.localizationWindow.none"));
             }
             else
             {
@@ -320,10 +320,10 @@ public class BasisLocalizationEditorWindow : EditorWindow
                 .OrderBy(k => k)
                 .ToList();
 
-            BasisEditorUI.SectionTitle($"In English but not in {_loaded.code} ({missingFromTranslation.Count})");
+            BasisEditorUI.SectionTitle(BasisEditorLocalization.Get("editor.localizationWindow.missingInLanguage", _loaded.code, missingFromTranslation.Count));
             if (missingFromTranslation.Count == 0)
             {
-                BasisEditorUI.Note("  (none)");
+                BasisEditorUI.Note("  " + BasisEditorLocalization.Get("editor.localizationWindow.none"));
             }
             else
             {
@@ -351,7 +351,7 @@ public class BasisLocalizationEditorWindow : EditorWindow
                     GUILayout.FlexibleSpace();
                 }
 
-                if (GUILayout.Button("Add", GUILayout.Width(50)))
+                if (GUILayout.Button(BasisEditorLocalization.Get("editor.common.add"), GUILayout.Width(50)))
                 {
                     string seed = showEnglishSource && _englishSnapshot.TryGetValue(key, out string seedValue)
                         ? seedValue
@@ -478,13 +478,19 @@ public class BasisLocalizationEditorWindow : EditorWindow
 
     private void CreateNewLanguageDialog()
     {
-        string code = EditorInputDialog.Show("New Language", "Language code (e.g. fr, de, zh-Hans):", string.Empty);
+        string code = EditorInputDialog.Show(
+            BasisEditorLocalization.Get("editor.localizationWindow.newLanguageTitle"),
+            BasisEditorLocalization.Get("editor.localizationWindow.newLanguagePrompt"),
+            string.Empty);
         if (string.IsNullOrEmpty(code)) return;
 
         string path = Path.Combine(LanguagesDirectory, code + ".json");
         if (File.Exists(path))
         {
-            EditorUtility.DisplayDialog("Already exists", $"{code}.json already exists.", "OK");
+            EditorUtility.DisplayDialog(
+                BasisEditorLocalization.Get("editor.localizationWindow.alreadyExistsTitle"),
+                BasisEditorLocalization.Get("editor.localizationWindow.alreadyExistsBody", code + ".json"),
+                BasisEditorLocalization.Get("editor.common.ok"));
             return;
         }
 
@@ -517,10 +523,10 @@ public class BasisLocalizationEditorWindow : EditorWindow
     {
         if (!_dirty) return true;
         return EditorUtility.DisplayDialog(
-            "Unsaved changes",
-            "You have unsaved changes in this language. Discard them?",
-            "Discard",
-            "Cancel");
+            BasisEditorLocalization.Get("editor.localizationWindow.unsavedTitle"),
+            BasisEditorLocalization.Get("editor.localizationWindow.unsavedBody"),
+            BasisEditorLocalization.Get("editor.localizationWindow.discard"),
+            BasisEditorLocalization.Get("editor.common.cancel"));
     }
 
     // ----------------- Code scanner -----------------
@@ -628,12 +634,12 @@ internal class EditorInputDialog : EditorWindow
         using (new EditorGUILayout.HorizontalScope())
         {
             GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Cancel", GUILayout.Width(80)))
+            if (GUILayout.Button(BasisEditorLocalization.Get("editor.common.cancel"), GUILayout.Width(80)))
             {
                 _cancelled = true;
                 Close();
             }
-            if (GUILayout.Button("OK", GUILayout.Width(80)) ||
+            if (GUILayout.Button(BasisEditorLocalization.Get("editor.common.ok"), GUILayout.Width(80)) ||
                 (Event.current.type == EventType.KeyDown && Event.current.keyCode == KeyCode.Return))
             {
                 _submitted = true;

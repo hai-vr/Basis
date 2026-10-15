@@ -305,6 +305,13 @@ public static class BasisBeeManagement
             AssetBundleCreateRequest bundleRequest = await BasisEncryptionToData.GenerateBundleFromFile(wrapper.LoadableBundle.UnlockPassword, BasisEncryptionToData.AssetBundlePart(output.Item1, output.Item2), output.Item1.AssetBundleCRC, BuildStage(), version => wrapper.BuiltWithUnityVersion = version);
             if (bundleRequest == null || bundleRequest.assetBundle == null)
             {
+                if (TryAdoptLoadedBundle(wrapper, output.Item1.AssetToLoadName))
+                {
+                    BasisDebug.Log($"Another load of {output.Item1.AssetToLoadName} finished first; using that bundle instead.", BasisDebug.LogTag.Event);
+                    PrepareEmbeddedGraphicsStates(wrapper, output.Item1, output.Item2);
+                    await SaveMetaIfNeeded(wrapper, shouldUseOnDiskMeta, didForceRedownload, output.Item1.Platform);
+                    return;
+                }
                 if (shouldUseOnDiskMeta && !didForceRedownload)
                 {
                     BasisDebug.Log("Cached bundle bytes failed to load; forcing re-download.", BasisDebug.LogTag.Event);
@@ -400,6 +407,26 @@ public static class BasisBeeManagement
         wrapper.IsBundleBackingStoreReleased = false;
         #endif
         PrepareEmbeddedGraphicsStates(wrapper, output.Item1, output.Item2);
+    }
+
+    private static bool TryAdoptLoadedBundle(BasisTrackedBundleWrapper wrapper, string assetToLoadName)
+    {
+        if (string.IsNullOrEmpty(assetToLoadName))
+        {
+            return false;
+        }
+        foreach (AssetBundle assetBundle in AssetBundle.GetAllLoadedAssetBundles())
+        {
+            if (assetBundle != null && assetBundle.Contains(assetToLoadName))
+            {
+                wrapper.AssetBundle = assetBundle;
+                #if UNITY_BUNDLEUNLOAD
+                wrapper.IsBundleBackingStoreReleased = false;
+                #endif
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void PrepareEmbeddedGraphicsStates(

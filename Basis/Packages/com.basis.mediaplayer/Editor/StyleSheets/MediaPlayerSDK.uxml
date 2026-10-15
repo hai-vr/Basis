@@ -5,7 +5,7 @@
         </engine:VisualElement>
 
         <engine:VisualElement name="SourceCard" class="bvp-card">
-            <engine:Label text="Source" class="bvp-section-title"/>
+            <engine:Label text="Source" name="SourceSectionTitle" class="bvp-section-title"/>
             <engine:VisualElement name="UrlGroup" class="bvp-subgroup">
                 <engine:Toggle label="Per-Platform URLs" name="PerPlatformUrlsField" tooltip="Publish this source differently per platform — RTSP on desktop, MPEG-TS over HTTPS on Quest — rather than using one URL everywhere. Unticking clears the Android URL, so nothing is left behind to take effect silently."/>
                 <engine:TextField label="URL" name="UrlField" tooltip="http(s) URL or absolute file path. A page URL (YouTube, Twitch) needs a resolver package installed."/>
@@ -26,28 +26,28 @@
         </engine:Foldout>
 
         <engine:VisualElement name="NowPlayingCard" class="bvp-card">
-            <engine:Label text="Now Playing" class="bvp-section-title"/>
+            <engine:Label text="Now Playing" name="NowPlayingSectionTitle" class="bvp-section-title"/>
             <engine:VisualElement name="NowPlayingTitleRow" class="bvp-status-row">
-                <engine:Label text="Title" selectable="false" class="bvp-status-label"/>
+                <engine:Label text="Title" name="NowPlayingTitleLabel" selectable="false" class="bvp-status-label"/>
                 <engine:Label text="" name="NowPlayingTitle" selectable="false" class="bvp-status-value bvp-status-value-wrap"/>
             </engine:VisualElement>
             <engine:VisualElement name="NowPlayingUploaderRow" class="bvp-status-row">
-                <engine:Label text="Uploader" selectable="false" class="bvp-status-label"/>
+                <engine:Label text="Uploader" name="NowPlayingUploaderLabel" selectable="false" class="bvp-status-label"/>
                 <engine:Label text="" name="NowPlayingUploader" selectable="false" class="bvp-status-value"/>
             </engine:VisualElement>
             <engine:VisualElement name="NowPlayingSourceRow" class="bvp-status-row">
-                <engine:Label text="Source" selectable="false" class="bvp-status-label"/>
+                <engine:Label text="Source" name="NowPlayingSourceLabel" selectable="false" class="bvp-status-label"/>
                 <engine:Label text="" name="NowPlayingSource" selectable="false" class="bvp-status-value bvp-status-value-wrap"/>
             </engine:VisualElement>
             <engine:VisualElement name="NowPlayingDurationRow" class="bvp-status-row">
-                <engine:Label text="Duration" selectable="false" class="bvp-status-label"/>
+                <engine:Label text="Duration" name="NowPlayingDurationLabel" selectable="false" class="bvp-status-label"/>
                 <engine:Label text="" name="NowPlayingDuration" selectable="false" class="bvp-status-value"/>
             </engine:VisualElement>
             <engine:Label text="Populated by a resolver. A direct stream URL has no metadata to report." name="NowPlayingHint" class="bvp-help-info"/>
         </engine:VisualElement>
 
         <engine:Foldout text="Output" name="OutputFoldout" value="true" class="bvp-foldout">
-            <engine:Label text="This component decodes; it draws and sounds nothing on its own. Add a Basis Video Material Output (a renderer) or a Basis Video Display (a uGUI RawImage) for picture, and a Basis Media Audio for sound." class="bvp-help-info"/>
+            <engine:Label text="This component decodes; it draws and sounds nothing on its own. Add a Basis Video Material Output (a renderer) or a Basis Video Display (a uGUI RawImage) for picture, and a Basis Media Audio for sound." name="OutputHelp" class="bvp-help-info"/>
         </engine:Foldout>
 
         <engine:Foldout text="Buffering" name="BufferingFoldout" value="false" class="bvp-foldout">
@@ -56,13 +56,13 @@
 
         <engine:Foldout text="Advanced" name="AdvancedFoldout" value="false" class="bvp-foldout">
             <engine:VisualElement name="LivenessGroup" class="bvp-subgroup">
-                <engine:Label text="Source kind" class="bvp-subgroup-title"/>
+                <engine:Label text="Source kind" name="LivenessGroupTitle" class="bvp-subgroup-title"/>
                 <engine:EnumField label="Liveness" name="LivenessField" tooltip="Override what the player works out for itself. Auto reads it from the source and is almost always right; set Live or Vod only to overrule a server whose headers mislead. RTSP, WHEP and RIST are always live, and an HLS playlist decides for itself, whatever this says."/>
                 <engine:Label text="Worked out from the source. Set this only if a badly configured server has it wrong." name="LivenessHint" class="bvp-help-info"/>
             </engine:VisualElement>
 
             <engine:VisualElement name="EngineCaptureGroup" class="bvp-subgroup">
-                <engine:Label text="Engine capture" class="bvp-subgroup-title"/>
+                <engine:Label text="Engine capture" name="EngineCaptureGroupTitle" class="bvp-subgroup-title"/>
                 <engine:Toggle label="Enabled" name="EngineCaptureField" tooltip="Have the engine capture its own side of the session — bank depth, decode and present counts, clock, sampled every 100 ms on its own thread. Held in memory and written as one file when the session ends, so it appears on stop rather than during play. Not the Basis Media Player Diagnostics component, which records the other side of the boundary: render cadence, frame hold times and audio pull, none of which the engine can observe. Run both to see a session from each side."/>
                 <engine:TextField label="File" name="EngineCaptureFileField" tooltip="Filename under the same folder the frame capture uses. Empty means BasisMediaEngine.csv."/>
                 <engine:Toggle label="Append Sessions" name="EngineCaptureAppendField" tooltip="Append each session to that file instead of replacing it, so a player that opens and closes repeatedly keeps every run. The header is written once, when the file is created."/>
@@ -71,26 +71,26 @@
             </engine:VisualElement>
 
             <engine:VisualElement name="LoggingGroup" class="bvp-subgroup">
-                <engine:Label text="Logging and screenshots" class="bvp-subgroup-title"/>
+                <engine:Label text="Logging and screenshots" name="LoggingGroupTitle" class="bvp-subgroup-title"/>
                 <engine:Toggle label="Verbose Logging" name="VerboseLoggingField" tooltip="Log this player's own actions to the Console: state changes, seeks, loops, the sleep timer. Engine events are logged regardless."/>
                 <engine:Toggle label="Flip Screenshots Vertically" name="FlipScreenshotField" tooltip="Invert the rows of a CaptureScreenshot image relative to what the player works out for this graphics API. Set it only if screenshots still come out upside down."/>
             </engine:VisualElement>
 
             <engine:VisualElement name="NetworkGroup" class="bvp-subgroup">
-                <engine:Label text="Network" class="bvp-subgroup-title"/>
+                <engine:Label text="Network" name="NetworkGroupTitle" class="bvp-subgroup-title"/>
                 <engine:Toggle label="Allow Local Addresses" name="AllowLocalField" tooltip="Permit sources on private or loopback addresses. For local test rigs only — it opts out of the engine's address gate. A local file path is not an address and never needs this."/>
             </engine:VisualElement>
         </engine:Foldout>
 
         <engine:Foldout text="Session" name="SessionFoldout" value="true" class="bvp-foldout">
             <engine:VisualElement class="bvp-status-grid">
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="State" class="bvp-status-label"/><engine:Label text="—" name="StatusState" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Position" class="bvp-status-label"/><engine:Label text="—" name="StatusPosition" class="bvp-status-value"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Banked" class="bvp-status-label"/><engine:Label text="—" name="StatusBanked" class="bvp-status-value"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Video" class="bvp-status-label"/><engine:Label text="—" name="StatusVideo" class="bvp-status-value"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Frames" class="bvp-status-label"/><engine:Label text="—" name="StatusFrames" class="bvp-status-value"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row"><engine:Label text="Audio Pulled" class="bvp-status-label"/><engine:Label text="—" name="StatusAudio" class="bvp-status-value"/></engine:VisualElement>
-                <engine:VisualElement class="bvp-status-row" name="SyncRow"><engine:Label text="Sync Trim" class="bvp-status-label"/><engine:Label text="—" name="StatusSync" class="bvp-status-value"/></engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row"><engine:Label text="State" name="StatusStateLabel" class="bvp-status-label"/><engine:Label text="—" name="StatusState" class="bvp-status-pill bvp-pill-neutral"/></engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row"><engine:Label text="Position" name="StatusPositionLabel" class="bvp-status-label"/><engine:Label text="—" name="StatusPosition" class="bvp-status-value"/></engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row"><engine:Label text="Banked" name="StatusBankedLabel" class="bvp-status-label"/><engine:Label text="—" name="StatusBanked" class="bvp-status-value"/></engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row"><engine:Label text="Video" name="StatusVideoLabel" class="bvp-status-label"/><engine:Label text="—" name="StatusVideo" class="bvp-status-value"/></engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row"><engine:Label text="Frames" name="StatusFramesLabel" class="bvp-status-label"/><engine:Label text="—" name="StatusFrames" class="bvp-status-value"/></engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row"><engine:Label text="Audio Pulled" name="StatusAudioLabel" class="bvp-status-label"/><engine:Label text="—" name="StatusAudio" class="bvp-status-value"/></engine:VisualElement>
+                <engine:VisualElement class="bvp-status-row" name="SyncRow"><engine:Label text="Sync Trim" name="StatusSyncLabel" class="bvp-status-label"/><engine:Label text="—" name="StatusSync" class="bvp-status-value"/></engine:VisualElement>
             </engine:VisualElement>
             <engine:Label text="—" name="StatusError" class="bvp-help-error"/>
             <engine:Label text="Enter Play Mode for live counters and transport controls." name="StatusEditModeHint" class="bvp-help-info"/>

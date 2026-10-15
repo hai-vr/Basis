@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -24,7 +25,8 @@ using UnityEngine;
 /// lines produced with no player anywhere wait in the ring until one
 /// appears, or age out of it.
 /// </summary>
-public static class BasisMediaLogDrain
+[AutoStaticsCleanup]
+public static partial class BasisMediaLogDrain
 {
     /// Records per drain call. The ring holds 512 and drops its oldest, so
     /// what one call cannot carry is asked for again rather than lost.
@@ -58,13 +60,14 @@ public static class BasisMediaLogDrain
     public static event Action<BasisMediaLogLine> LineReceived;
 
     /// Lines the ring has evicted, as last reported, so growth is announced
-    /// once rather than every frame it stays non-zero.
-    static ulong _evictedSeen;
+    /// once rather than every frame it stays non-zero. The ring's count is the
+    /// plugin's and outlives a Play session, so this must too.
+    [NoAutoStaticsCleanup] static ulong _evictedSeen;
 
     /// <summary>From a player's tick. Idempotent within a frame.</summary>
     internal static unsafe void Pump()
     {
-        if (_drainedFrame == Time.frameCount) return;
+        if (_drainedFrame == Time.frameCount || Application.platform == RuntimePlatform.WebGLPlayer) return;
         _drainedFrame = Time.frameCount;
 
         var records = stackalloc BmLogRecord[DrainBatch];

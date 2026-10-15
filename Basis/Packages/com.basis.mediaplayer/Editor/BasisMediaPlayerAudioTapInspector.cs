@@ -1,3 +1,4 @@
+using Basis.Editor.Localization;
 using System;
 using UnityEditor;
 using UnityEngine;
@@ -15,21 +16,11 @@ using UnityEngine.UIElements;
 [CustomEditor(typeof(BasisMediaPlayerAudioTap))]
 public class BasisMediaPlayerAudioTapInspector : Editor
 {
-    private const string Note =
-        "Generates this AudioSource's audio from the media player's decoded stream. " +
-        "Unity applies audio filters in component order, so a Low Pass / Reverb / " +
-        "Chorus filter must sit BELOW this component to hear the stream. Anything " +
-        "above it is fed silence.";
-
-    private const string Warning =
-        "The filters above this component are being fed silence. Raise the tap above " +
-        "them so they process the stream.";
-
     public override VisualElement CreateInspectorGUI()
     {
         var root = new VisualElement();
-        root.Add(new HelpBox(Note, HelpBoxMessageType.Info));
-        root.Add(new BasisMediaPlayerTapOrdering.Notice(Source, _ => Warning));
+        root.Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.tap.note"), HelpBoxMessageType.Info));
+        root.Add(new BasisMediaPlayerTapOrdering.Notice(Source, _ => BasisEditorLocalization.Get("editor.mediaPlayer.tap.warning")));
         return root;
     }
 

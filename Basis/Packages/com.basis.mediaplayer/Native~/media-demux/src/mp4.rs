@@ -99,6 +99,8 @@ struct VideoTrack {
     /// presentation starts in the media, less any gap before the picture
     /// starts.
     shift: i64,
+    /// Where the edit list stops presenting the track.
+    end: Option<MediaTime>,
 }
 
 struct AvcParams {
@@ -117,6 +119,8 @@ struct AudioTrack {
     /// Where the track starts: the gap, so the priming it shifts past zero
     /// is still dropped.
     start: MediaTime,
+    /// Where the edit list stops presenting the track.
+    end: Option<MediaTime>,
 }
 
 /// The state a file read a fragment at a time carries between fragments.
@@ -460,7 +464,7 @@ impl Mp4Demuxer {
             .flatten()
             .find(|(id, _)| *id == track_id)
             .map_or(0, |(_, shift)| shift);
-            let stated = stated_span(track.duration, track.timescale)
+            let stated = presented_span(mp4, track)
                 .max(walked.and_then(|samples| walked_end(samples, track.timescale, shift)));
             if let Some(track_duration) = stated {
                 duration = duration.max(track_duration);
@@ -553,11 +557,13 @@ impl Mp4Demuxer {
         let trak = track.trak(mp4);
         let edits = edit_start(trak, u64::from(mp4.moov.mvhd.timescale), track.timescale);
         let shift = edits.media_time.saturating_sub(edits.empty);
+        let end = edit_end(trak, u64::from(mp4.moov.mvhd.timescale));
         let samples = self.new_samples(self.collect_samples(
             track,
             moov_reorder(track, trak),
             walked,
             shift,
+            end,
         )?);
         let width = if box_width != 0 {
             box_width
@@ -586,6 +592,7 @@ impl Mp4Demuxer {
             samples,
             avc,
             shift,
+            end,
         });
         Ok(Some(()))
     }
@@ -613,15 +620,17 @@ impl Mp4Demuxer {
         let shift = edits.media_time.saturating_sub(edits.empty);
         let start = MediaTime::from_micros(scale_to_us(edits.empty, track.timescale.max(1)));
 
-        let samples = match self.collect_samples(track, moov_reorder(track, trak), walked, shift) {
-            Ok(samples) => samples,
-            Err(e) => {
-                push_note(&mut self.refusals, || {
-                    format!("track {}: audio refused: {e}", track_id.0)
-                });
-                return None;
-            }
-        };
+        let end = edit_end(trak, u64::from(mp4.moov.mvhd.timescale));
+        let samples =
+            match self.collect_samples(track, moov_reorder(track, trak), walked, shift, end) {
+                Ok(samples) => samples,
+                Err(e) => {
+                    push_note(&mut self.refusals, || {
+                        format!("track {}: audio refused: {e}", track_id.0)
+                    });
+                    return None;
+                }
+            };
 
         let (codec, sample_rate, channels, codec_private) = match aac {
             Some((sample_rate, channels, asc)) => (AudioCodec::Aac, sample_rate, channels, asc),
@@ -649,6 +658,7 @@ impl Mp4Demuxer {
             samples: self.new_samples(samples),
             shift,
             start,
+            end,
         });
         Some(())
     }
@@ -825,13 +835,17 @@ impl Mp4Demuxer {
 
     /// A track's whole table: the samples `moov` holds, whose times
     /// `reorder` returns to the ones the file states, then those its
-    /// walked fragments add.
+    /// walked fragments add. Where the edit list ends the track early, the
+    /// table stops at the last sample shown before `end`: a sample decoded
+    /// after that one can be no picture's reference and no part of the
+    /// sound. Those decoded before it but shown past `end` stay.
     fn collect_samples(
         &self,
         track: &re_mp4::Track,
         reorder: i64,
         walked: Option<&[FragmentSample]>,
         shift: i64,
+        end: Option<MediaTime>,
     ) -> Result<Vec<SampleRef>, DemuxError> {
         let mut all =
             self.collect_shifted_samples(&track.samples, shift.saturating_sub(reorder))?;
@@ -842,6 +856,11 @@ impl Mp4Demuxer {
                 shift,
                 &self.limits,
             )?);
+        }
+        if let Some(end) = end
+            && let Some(last) = all.iter().rposition(|s| s.pts < end)
+        {
+            all.truncate(last + 1);
         }
         Ok(all)
     }
@@ -1561,6 +1580,54 @@ fn moov_reorder(track: &re_mp4::Track, trak: &re_mp4::TrakBox) -> i64 {
     stated.saturating_sub(first.composition_timestamp)
 }
 
+/// How long a track presents for: the sum of its edits, as `tkhd` states
+/// it (8.3.2.3), where its edit list gives them lengths, else its media's
+/// own length. `mdhd` is in media time, which a B-frame track's edit list
+/// shifts, and can run past the end the edits give.
+fn presented_span(mp4: &re_mp4::Mp4, track: &re_mp4::Track) -> Option<MediaTime> {
+    track
+        .trak(mp4)
+        .edts
+        .as_ref()
+        .and_then(|e| e.elst.as_ref())
+        .and_then(|elst| {
+            elst.entries.iter().try_fold(0u64, |sum, entry| {
+                let known = entry.segment_duration != u64::from(u32::MAX)
+                    && entry.segment_duration != u64::MAX;
+                known.then(|| sum.saturating_add(entry.segment_duration))
+            })
+        })
+        .filter(|edits| *edits > 0)
+        .and_then(|edits| stated_span(edits, u64::from(mp4.moov.mvhd.timescale)))
+        .or_else(|| stated_span(track.duration, track.timescale))
+}
+
+/// Where an edit list stops presenting its track, on the timeline the
+/// samples are emitted on: the empty edits ahead of it plus the one edit
+/// that presents media. Only that shape is read; an edit list with more
+/// than one span of media, or one played at another rate, plays the media
+/// whole, as does an edit that states no length.
+fn edit_end(trak: &re_mp4::TrakBox, movie_timescale: u64) -> Option<MediaTime> {
+    let elst = trak.edts.as_ref()?.elst.as_ref()?;
+    let gaps = elst
+        .entries
+        .iter()
+        .take_while(|entry| entry.media_time == u64::MAX || entry.media_time == u64::from(u32::MAX))
+        .count();
+    let [media] = &elst.entries[gaps..] else {
+        return None;
+    };
+    if media.media_rate != 1 || media.media_rate_fraction != 0 || media.segment_duration == 0 {
+        return None;
+    }
+    let end = elst.entries[..gaps]
+        .iter()
+        .try_fold(media.segment_duration, |end, entry| {
+            end.checked_add(entry.segment_duration)
+        })?;
+    stated_span(end, movie_timescale)
+}
+
 struct EditStart {
     empty: i64,
     media_time: i64,
@@ -2012,6 +2079,14 @@ impl Demuxer for Mp4Demuxer {
 
     fn audio_start(&self) -> MediaTime {
         self.audio.as_ref().map_or(MediaTime::ZERO, |a| a.start)
+    }
+
+    fn video_end(&self) -> Option<MediaTime> {
+        self.video.as_ref().and_then(|v| v.end)
+    }
+
+    fn audio_end(&self) -> Option<MediaTime> {
+        self.audio.as_ref().and_then(|a| a.end)
     }
 
     fn take_notes(&mut self) -> Vec<String> {
@@ -2523,6 +2598,45 @@ mod tests {
             ),
             Err(DemuxError::Io(_))
         ));
+    }
+
+    /// A track with these edits, as (segment duration, media time, rate),
+    /// the media time `u64::MAX` for an empty edit.
+    fn trak_with_edits(edits: &[(u64, u64, u16)]) -> re_mp4::TrakBox {
+        let mut elst = re_mp4::ElstBox::default();
+        for &(segment_duration, media_time, media_rate) in edits {
+            elst.entries.push(Default::default());
+            let entry = elst.entries.last_mut().expect("just pushed");
+            entry.segment_duration = segment_duration;
+            entry.media_time = media_time;
+            entry.media_rate = media_rate;
+        }
+        re_mp4::TrakBox {
+            edts: Some(re_mp4::EdtsBox { elst: Some(elst) }),
+            ..Default::default()
+        }
+    }
+
+    /// Only empty edits followed by one edit of media at the normal rate
+    /// give an end; any other shape plays the media whole.
+    #[test]
+    fn an_edit_list_ends_its_track_only_in_the_shape_it_can() {
+        let end = |edits: &[(u64, u64, u16)]| edit_end(&trak_with_edits(edits), 1000);
+        let at = |us| Some(MediaTime::from_micros(us));
+        assert_eq!(end(&[(3900, 1024, 1)]), at(3_900_000));
+        assert_eq!(end(&[(500, u64::MAX, 1), (3000, 1024, 1)]), at(3_500_000));
+        assert_eq!(
+            end(&[(500, u64::from(u32::MAX), 1), (3000, 1024, 1)]),
+            at(3_500_000),
+            "a version 0 empty edit"
+        );
+        assert_eq!(end(&[]), None);
+        assert_eq!(end(&[(500, u64::MAX, 1)]), None, "no media at all");
+        assert_eq!(end(&[(3000, 1024, 1), (3000, 1024, 1)]), None);
+        assert_eq!(end(&[(3000, 1024, 1), (500, u64::MAX, 1)]), None);
+        assert_eq!(end(&[(3000, 1024, 2)]), None, "another rate");
+        assert_eq!(end(&[(0, 1024, 1)]), None, "no length stated");
+        assert_eq!(edit_end(&re_mp4::TrakBox::default(), 1000), None);
     }
 
     /// A walked track ends where its last sample does on the timeline the

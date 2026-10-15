@@ -32,8 +32,8 @@ namespace Basis.Scripts.BasisCharacterController
             Vector3 planar = new Vector3(ctx.MovementVector.x, 0, ctx.MovementVector.y).normalized;
 
             ctx.CurrentSpeed =
-                math.lerp(ctx.MinimumMovementSpeed, ctx.MaximumMovementSpeed, ctx.MovementSpeedScale)
-                + ctx.MinimumMovementSpeed * ctx.MovementSpeedBoost;
+                (math.lerp(ctx.MinimumMovementSpeed, ctx.MaximumMovementSpeed, ctx.MovementSpeedScale)
+                + ctx.MinimumMovementSpeed * ctx.MovementSpeedBoost) * BasisLocalCharacterDriver.LocomotionSpeedScale();
 
             Vector3 move = facing * planar * ctx.CurrentSpeed * dt;
 

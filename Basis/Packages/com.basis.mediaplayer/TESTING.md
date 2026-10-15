@@ -14,6 +14,7 @@ prefabs. None of the rows below has an automated test. The engine's tests are in
 | Which routes open a URL, the prompt, or the resolvers (`Runtime/Resolver/`) | [URL consent](#url-consent) |
 | How engine events and log lines reach the Console | [Console diagnostics](#console-diagnostics) |
 | Texture handling or the native plugin | [Direct3D 11 and 12](#direct3d-11-and-12) |
+| The engine's dependencies or its licence files (`Native~/Cargo.lock`, `ThirdPartyLicenses~/`) | [Third-party licences](#third-party-licences) |
 
 When the pull request is ready, report the rows as the engine guide's
 [Reporting in a pull request](Native~/TESTING.md#reporting-in-a-pull-request)
@@ -66,7 +67,11 @@ Give the build its own capture filenames first; both write to the same
 | Join mid-resync | Join during a resync reopen | Lands at the owner's position, not near zero |
 | Local resync | A follower presses **Local Resync** | Only that client reopens |
 | Inspector buttons | The same two presses from the networking component's inspector, in Play Mode | Same as from the panel |
-| Untrusted URL | The owner sets a URL on a host outside `BasisTrustedUrls` | The follower loads it with no prompt |
+| Untrusted URL | The owner sets a URL on a host outside `BasisTrustedUrls` | The follower is asked before anything loads, and its screen stops while the prompt is up |
+| Untrusted URL, accepted late | Leave the follower's prompt up for a minute while the owner plays, pauses and seeks, then **Accept** | It lands at the owner's position, paused or playing as the owner is |
+| Untrusted URL, declined | **Decline** on the follower, then the owner pauses, seeks, presses **Play** and re-shares the same URL | The follower stays stopped and is not asked again. A different URL asks again, and the follower's own **Play** or **Local Resync** asks again |
+| Untrusted URL under do-not-disturb | Turn do-not-disturb on for the follower, then share an untrusted URL | The prompt goes to the notification list without opening the menu; accepting it from there lands at the owner's position |
+| Joiner while a follower decides | A third client joins while the follower's prompt is up, with the owner gone | The joiner is not told to stop by the undecided follower |
 | A video hours long | Owner seeks deep into a fragmented video of two hours or more, then a client joins. Try a direct URL (make one with `ffmpeg -stream_loop -1 -i <clip> -t 7200 -c copy -movflags +frag_keyframe+empty_moov+default_base_moof+global_sidx -frag_duration 2000000 out.mp4` and serve it with byte ranges) and `https://www.youtube.com/watch?v=aNS5o3VJ0-A` (11 h, H.264) | Opens as fast as a short video; the joiner lands beside the owner |
 
 No follower may snap to the start during any resync, even briefly. With the
@@ -135,7 +140,7 @@ stated.
 | Row | Do | Expect |
 | --- | --- | --- |
 | Authored URL | A scene player with an untrusted URL and **Play On Start**, enter Play Mode | The prompt shows; nothing opens until **Accept**. **Decline** leaves the player idle |
-| Panel URL | Type the same URL into the Media Players panel | Opens with no prompt |
+| Panel URL | Type the same URL into the Media Players panel, with and without do-not-disturb | The prompt shows over the panel without rebuilding the menu; nothing opens until **Accept** |
 | Declined, then Play | **Decline** the authored prompt, then press the panel's **Play** | Prompts again |
 | Re-open | Let a source end, or **Local Resync** with no networking, then **Play** | Re-opens with no prompt |
 | Remember | Accept with Remember set to the URL, then the host, then the domain, re-entering Play Mode each time | The next entry does not prompt; `GetUserAdded()` shows the pattern |
@@ -181,6 +186,15 @@ file given with `-logFile <path>`.
 | Playback | Play a video with sound, seek forwards and back, pause, resume | Picture and sound throughout, seeks land on their target, the pause holds its frame, and no `consumer open failed` line |
 | Screenshot | From a script, call `CaptureScreenshot()` on a player showing a known frame, with **Flip Screenshots Vertically** off, then again with it on | Off: the PNG under `Screenshots/` in the persistent data folder is upright. On: inverted |
 | Render-thread cost | With `BasisMediaPlayerDiagnostics` recording, leave a minute of playback untouched, then a minute with the player idle | Mean frame time within 0.1 ms of the idle minute, and no more than three extra frames over 33 ms. If either misses, run both minutes again; a second miss is a regression |
+
+## Third-party licences
+
+Update the files and bake as [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
+describes.
+
+| Row | Do | Expect |
+| --- | --- | --- |
+| Licence list | In Play Mode, open Settings, Third-party licences | A **Basis Media Player** entry and one **Basis Media Player engine: …** entry per file in `ThirdPartyLicenses~/`. Each expands to its whole text, the ISC and Apache-2.0 entries included |
 
 ## Still needs a person
 

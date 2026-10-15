@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using Basis.Scripts.Audio;
 using Basis.Scripts.Avatar;
 using Basis.Scripts.BasisSdk.Helpers;
@@ -18,7 +19,8 @@ namespace Basis.Scripts.Device_Management.Devices
     /// Manages device identity, role assignment, calibration offsets, raycasting helpers,
     /// and lifecycle hooks for polling and applying data to the local rig.
     /// </summary>
-    public abstract class BasisInput : MonoBehaviour
+    [AutoStaticsCleanup]
+    public abstract partial class BasisInput : MonoBehaviour
     {
         /// <summary>
         /// Whether event subscriptions have been registered for this input.
@@ -372,17 +374,17 @@ namespace Basis.Scripts.Device_Management.Devices
             // the play-space mover adds its live OVRAS-style "Space Drag" vertical offset. Both shift the
             // whole tracking space here so the camera, hands, and avatar move together as one without
             // moving the character controller capsule.
-            if (BasisDeviceManagement.IsCurrentModeVR())
-            {
-                float yOffset = BasisLocalPlayspaceMover.VerticalOffset;
-                if (SMModuleSitStand.IsSteatedMode)
-                {
-                    yOffset += SMModuleSitStand.MissingHeightDelta;
-                }
-                yOffset += BasisHeightDriver.HeightModeGroundingOffset;
-                position.y += yOffset;
-            }
+            position.y += UnscaledVerticalLift();
             coords.position = position;
+        }
+        public static float UnscaledVerticalLift()
+        {
+            if (!BasisDeviceManagement.IsCurrentModeVR())
+            {
+                return 0f;
+            }
+            float yOffset = BasisLocalPlayspaceMover.VerticalOffset + BasisHeightDriver.HeightModeGroundingOffset;
+            return SMModuleSitStand.IsSteatedMode ? yOffset + SMModuleSitStand.MissingHeightDelta : yOffset;
         }
         /// <summary>
         /// Computes the raycast origin/direction using the hand’s final transform and active offset.
@@ -600,12 +602,15 @@ namespace Basis.Scripts.Device_Management.Devices
         public bool HasCalibratedOffsetSnapshot;
         public Vector3 CalibratedUnscaledPosition;
         public Quaternion CalibratedUnscaledRotation = Quaternion.identity;
+        public float CalibratedUnscaledLift;
         // Head anchor the snapshot above was captured against, in the same unscaled space. Each
         // tracker pairs with its OWN capture-time head so reprojection and continuous-calibration
         // adoption rebuild the geometry of THIS capture — a mid-session recapture (device reconnect,
         // matcher-pinned tracker) must not be rebuilt against the ritual-calibration head.
         public Vector3 CalibratedUnscaledHeadPosition;
         public Quaternion CalibratedUnscaledHeadRotation = Quaternion.identity;
+        public bool HasCalibratedHeadFromEye;
+        public Vector3 CalibratedUnscaledHeadFromEye;
 
         /// <summary>
         /// Computes and applies the inverse offset from the driven bone so that the tracker maintains
@@ -647,6 +652,10 @@ namespace Basis.Scripts.Device_Management.Devices
                     BasisCalibrationMath.ComputeTposeAnchor(headWorld.position, headWorld.rotation, fittedHeadTpose, out Vector3 anchorPos, out Quaternion anchorRot);
                     Vector3 world = anchorPos + anchorRot * fittedBoneTpose;
                     referencePosition = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4(world);
+                    if (BasisCalibrationMath.IsFloorAnchoredRole(role))
+                    {
+                        referencePosition.y = BasisCalibrationMath.FloorAnchorY(BasisLocalPlayspaceMover.VerticalOffset, BasisHeightDriver.DeviceScale, OffsetCoords.position, OffsetCoords.rotation) + BasisAvatarIKStageCalibration.AuthoredFloorHeight(role, fittedBoneTpose.y);
+                    }
                 }
                 else if (BasisLocalAvatarDriver.HasTposeBoneSnapshot
                     && BasisLocalAvatarDriver.TposeBoneSnapshot.TryGetValue(role, out var bind)
@@ -662,6 +671,10 @@ namespace Basis.Scripts.Device_Management.Devices
                     if (float.IsNaN(avatarScale) || float.IsInfinity(avatarScale) || avatarScale <= 1e-6f) avatarScale = 1f;
                     Vector3 world = anchorPos + anchorRot * (bind.position * avatarScale);
                     referencePosition = BasisLocalPlayer.localToWorldMatrix.inverse.MultiplyPoint3x4(world);
+                    if (BasisCalibrationMath.IsFloorAnchoredRole(role))
+                    {
+                        referencePosition.y = BasisCalibrationMath.FloorAnchorY(BasisLocalPlayspaceMover.VerticalOffset, BasisHeightDriver.DeviceScale, OffsetCoords.position, OffsetCoords.rotation) + bind.position.y * avatarScale;
+                    }
                 }
                 else if (avatarDriver.StoredRolesTransforms != null
                     && avatarDriver.StoredRolesTransforms.TryGetValue(role, out Transform avatarBone)
@@ -682,8 +695,10 @@ namespace Basis.Scripts.Device_Management.Devices
             if (anchorHeadControl != null)
             {
                 BasisCalibrationMath.UnscaleDeviceCoord(tracker.position, tracker.rotation, BasisHeightDriver.DeviceScale, OffsetCoords.position, OffsetCoords.rotation, out CalibratedUnscaledPosition, out CalibratedUnscaledRotation);
+                CalibratedUnscaledLift = UnscaledVerticalLift();
                 BasisCalibratedCoords anchorHeadOut = anchorHeadControl.OutGoingData;
                 BasisCalibrationMath.UnscaleDeviceCoord(anchorHeadOut.position, anchorHeadOut.rotation, BasisHeightDriver.DeviceScale, OffsetCoords.position, OffsetCoords.rotation, out CalibratedUnscaledHeadPosition, out CalibratedUnscaledHeadRotation);
+                HasCalibratedHeadFromEye = BasisAvatarIKStageCalibration.TryGetUnscaledHeadFromEye(out CalibratedUnscaledHeadFromEye);
                 HasCalibratedOffsetSnapshot = true;
             }
             else
@@ -955,7 +970,11 @@ namespace Basis.Scripts.Device_Management.Devices
                     BasisActionDriver.UpdatePlayerControl(trackedRole, ref CurrentInputState, ref LastInputState);
                 }
             }
-            bool pointerActive = hasPlayerRaycastSupport && PointerActive;
+            if (!hasPlayerRaycastSupport)
+            {
+                return;
+            }
+            bool pointerActive = PointerActive;
             if (pointerActive)
             {
                 BasisPointRaycaster.UpdateRaycast();

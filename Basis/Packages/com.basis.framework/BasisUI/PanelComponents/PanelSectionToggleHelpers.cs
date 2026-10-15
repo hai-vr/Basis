@@ -1,10 +1,12 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace Basis.BasisUI
 {
-    public static class PanelSectionToggleHelpers
+    [AutoStaticsCleanup]
+    public static partial class PanelSectionToggleHelpers
     {
         /// <summary>
         /// Creates a titled content group for a section toggle and registers it for divider ownership.
@@ -187,6 +189,47 @@ namespace Basis.BasisUI
             };
 
             return sectionToggle;
+        }
+
+        /// <summary>
+        /// Settles a section after it expands, collapses or changes rows: rebuilds its open box, or for
+        /// a flat section each row card under the header, innermost first, then every ancestor out to
+        /// <paramref name="stopAt"/> (pass the tab page's content). Rebuilding the tab root instead is a
+        /// no-op, and one pass on the page measures a card before the card has resized.
+        /// </summary>
+        public static void RebuildSectionLayout(PanelSectionToggle header, RectTransform stopAt)
+        {
+            if (header == null || !(header.transform.parent is RectTransform host))
+            {
+                return;
+            }
+
+            List<Transform> boxes = new List<Transform>(1);
+            header.GetContentContainers(boxes);
+            for (int i = 0; i < boxes.Count; i++)
+            {
+                if (boxes[i].gameObject.activeInHierarchy && boxes[i].TryGetComponent(out PanelElementDescriptor box))
+                {
+                    PanelElementDescriptor.RebuildLayoutChain(box.ContentParent, stopAt);
+                    return;
+                }
+            }
+
+            for (int i = header.transform.GetSiblingIndex() + 1; i < host.childCount; i++)
+            {
+                Transform row = host.GetChild(i);
+                if (row.GetComponent<PanelSectionToggle>() != null)
+                {
+                    break;
+                }
+
+                if (row.gameObject.activeInHierarchy && row.TryGetComponent(out PanelElementDescriptor rowDesc))
+                {
+                    PanelElementDescriptor.RebuildLayoutChain(rowDesc.ContentParent, rowDesc.rectTransform);
+                }
+            }
+
+            PanelElementDescriptor.RebuildLayoutChain(host, stopAt);
         }
 
         /// <summary>
@@ -453,10 +496,12 @@ namespace Basis.BasisUI
         /// </summary>
         private static void SetContentActive(Component content, bool active)
         {
+            if (content == null)
+            {
+                return;
+            }
             switch (content)
             {
-                case null:
-                    return;
                 case PanelComponent panelComponent:
                     panelComponent.Descriptor.SetActive(active);
                     return;

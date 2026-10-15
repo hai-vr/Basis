@@ -1,11 +1,13 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
+[AutoStaticsCleanup]
 [System.Serializable]
-public class BasisTrackedBundleWrapper
+public partial class BasisTrackedBundleWrapper
 {
     [SerializeField]
     public BasisLoadableBundle LoadableBundle;
@@ -169,7 +171,7 @@ public class BasisTrackedBundleWrapper
         #endif
         if (Volatile.Read(ref _requestedTimes) <= 0)
         {
-            await Task.Delay(TimeSpan);
+            await BasisTasks.Delay(TimeSpan);
             if (TryClaimUnload())
             {
                 if (isGltfContent)

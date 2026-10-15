@@ -86,6 +86,7 @@ public static class BasisBundleGraphicsStateBuilder
             string[] qualityNames = QualitySettings.names;
             for (int qualityIndex = 0; qualityIndex < qualityNames.Length; qualityIndex++)
             {
+                if (!ShipsQualityLevel(target, qualityIndex)) continue;
                 string workDirectory = Path.GetDirectoryName(encryptedBundlePath);
                 string suffix = $"{api}.{qualityIndex}";
                 string plainPath = Path.Combine(workDirectory, $"{Path.GetFileNameWithoutExtension(encryptedBundlePath)}.{suffix}.graphicsstate");
@@ -174,6 +175,12 @@ public static class BasisBundleGraphicsStateBuilder
         }
     }
 
+    private static bool ShipsQualityLevel(BuildTarget target, int qualityIndex)
+    {
+        string platform = UnityEditor.Build.NamedBuildTarget.FromBuildTargetGroup(BuildPipeline.GetBuildTargetGroup(target)).TargetName;
+        return QualitySettings.IsPlatformIncluded(platform, qualityIndex);
+    }
+
     private static bool TryRuntimePlatform(BuildTarget target, out RuntimePlatform platform)
     {
         switch (target)
@@ -184,6 +191,7 @@ public static class BasisBundleGraphicsStateBuilder
             case BuildTarget.StandaloneLinux64: platform = RuntimePlatform.LinuxPlayer; return true;
             case BuildTarget.Android: platform = RuntimePlatform.Android; return true;
             case BuildTarget.iOS: platform = RuntimePlatform.IPhonePlayer; return true;
+            case BuildTarget.WebGL: platform = RuntimePlatform.WebGLPlayer; return true;
             default: platform = default; return false;
         }
     }

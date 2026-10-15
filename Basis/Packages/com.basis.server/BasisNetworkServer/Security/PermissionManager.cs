@@ -45,6 +45,8 @@ namespace BasisPermissions
         public const string ContentShareDelete = "basis.contentshare.delete";
         public const string ContentShareCreate = "basis.contentshare.create";
 
+        public const string StorageUse = "basis.storage.use";
+
         /// <summary>
         /// used to indicate that this persons actions are protected from interference
         /// </summary>
@@ -864,6 +866,7 @@ namespace BasisPermissions
             PermNodes.ResourceLoadWorld, PermNodes.ResourceUnloadWorld,
             PermNodes.OwnershipTransfer, PermNodes.OwnershipRemove, PermNodes.OwnershipGet,
             PermNodes.ContentShareDelete, PermNodes.ContentShareCreate,
+            PermNodes.StorageUse,
         };
 
         private static readonly string[] ModeratorGroupNodes =

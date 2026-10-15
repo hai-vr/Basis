@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 #if !BASIS_DISABLE_MICROPHONE
 using Basis;
 using Basis.BasisUI;
@@ -6,7 +7,8 @@ using System;
 using System.Globalization;
 using UnityEngine;
 
-public class SMDMicrophone : BasisSettingsBase
+[AutoStaticsCleanup]
+public partial class SMDMicrophone : BasisSettingsBase
 {
     public static string[] MicrophoneDevices;
 
@@ -156,7 +158,11 @@ public class SMDMicrophone : BasisSettingsBase
     // Load active mode (sets Current and emits once)
     public static void LoadInMicrophoneData(string mode)
     {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        MicrophoneDevices = BasisLocalMicrophoneDriver.WebMicrophoneDevices;
+#else
         MicrophoneDevices = Microphone.devices;
+#endif
 
         if (string.IsNullOrEmpty(mode))
         {

@@ -1,13 +1,17 @@
+using Unity.Scripting.LifecycleManagement;
 using UnityEngine;
 using System.Collections.Generic;
 using System;
 using System.Reflection;
+using Basis.Scripts.BasisSdk.Constraints;
+using CilboxItems = Basis.BasisUI.BasisCilboxPermissionText;
 
 namespace Cilbox
 {
-	public abstract class CilboxBasisCommon : Cilbox
+	[AutoStaticsCleanup]
+	public abstract partial class CilboxBasisCommon : Cilbox
 	{
-		protected static readonly HashSet<string> commonWhiteListType = new HashSet<string>(){
+		[NoAutoStaticsCleanup] protected static readonly HashSet<string> commonWhiteListType = new HashSet<string>(){
 			// Text Mesh Pro types
 			"TMPro.*",
 
@@ -53,6 +57,27 @@ namespace Cilbox
 			"Basis.Scripts.BasisSdk.Players.BasisLocalPlayer",
 			"Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer",
 			"HVR.Basis.Comms.OSC*",
+			"Basis.Scripts.BasisSdk.Constraints.BasisConstraintBase",
+			"Basis.Scripts.BasisSdk.Constraints.BasisConstraintSourceEntry",
+			"Basis.Scripts.BasisSdk.Constraints.BasisConstraintAxes",
+			"Basis.Scripts.BasisSdk.Constraints.BasisConstraintWorldUp",
+			"Basis.Scripts.BasisSdk.Constraints.BasisConstraintType",
+			"Basis.Scripts.BasisSdk.Constraints.BasisPositionConstraint",
+			"Basis.Scripts.BasisSdk.Constraints.BasisRotationConstraint",
+			"Basis.Scripts.BasisSdk.Constraints.BasisScaleConstraint",
+			"Basis.Scripts.BasisSdk.Constraints.BasisParentConstraint",
+			"Basis.Scripts.BasisSdk.Constraints.BasisAimConstraint",
+			"Basis.Scripts.BasisSdk.Constraints.BasisLookAtConstraint",
+			"Basis.Scripts.BasisSdk.Constraints.BasisBlendConstraint",
+			"Basis.Scripts.BasisSdk.Constraints.BasisOverrideTransform",
+			"Basis.Scripts.BasisSdk.Constraints.BasisOverrideTransform+Space",
+			"Basis.Scripts.BasisSdk.Constraints.BasisDampedTransform",
+			"Basis.Scripts.BasisSdk.Constraints.BasisTwistCorrection",
+			"Basis.Scripts.BasisSdk.Constraints.BasisTwistCorrection+TwistAxis",
+			"Basis.Scripts.BasisSdk.Constraints.BasisTwoBoneIK",
+			"Basis.Scripts.BasisSdk.Constraints.BasisChainIK",
+			"Basis.Scripts.BasisSdk.Constraints.BasisTwistChain",
+			"Basis.Scripts.BasisSdk.Constraints.BasisMultiReferential",
 
 			// Cilbox types
 			"Cilbox.CilboxPublicUtils",
@@ -137,6 +162,7 @@ namespace Cilbox
 			"UnityEngine.Debug", // Remapped via GetTypeOverride to BasisDebugPropsShim.
 			"UnityEngine.Events.UnityAction",
 			"UnityEngine.Events.UnityEvent",
+			"UnityEngine.Events.UnityEventBase",
 			"UnityEngine.Events.UnityEventCallState",
 			"UnityEngine.GameObject", // Hyper restrictive, see method whitelist.
 			"UnityEngine.Gradient",
@@ -376,6 +402,70 @@ namespace Cilbox
 			// Quantizer configuration (Precision/Min/Max/RequiredBits/Mask) on the script's
 			// own instance; Compress/Decompress clamp, so a mangled config can't corrupt.
 			"BasisNetworkPrimitiveCompression+BasisRangedUshortFloatData.*",
+			"Basis.Scripts.BasisSdk.Constraints.BasisConstraintSourceEntry.*",
+			"Basis.Scripts.BasisSdk.Constraints.BasisConstraintBase.constraintActive",
+			"Basis.Scripts.BasisSdk.Constraints.BasisConstraintBase.weight",
+			"Basis.Scripts.BasisSdk.Constraints.BasisConstraintBase.locked",
+			"Basis.Scripts.BasisSdk.Constraints.BasisPositionConstraint.translationAtRest",
+			"Basis.Scripts.BasisSdk.Constraints.BasisPositionConstraint.translationOffset",
+			"Basis.Scripts.BasisSdk.Constraints.BasisPositionConstraint.translationAxis",
+			"Basis.Scripts.BasisSdk.Constraints.BasisRotationConstraint.rotationAtRest",
+			"Basis.Scripts.BasisSdk.Constraints.BasisRotationConstraint.rotationOffset",
+			"Basis.Scripts.BasisSdk.Constraints.BasisRotationConstraint.rotationAxis",
+			"Basis.Scripts.BasisSdk.Constraints.BasisScaleConstraint.scaleAtRest",
+			"Basis.Scripts.BasisSdk.Constraints.BasisScaleConstraint.scaleOffset",
+			"Basis.Scripts.BasisSdk.Constraints.BasisScaleConstraint.scalingAxis",
+			"Basis.Scripts.BasisSdk.Constraints.BasisParentConstraint.translationAtRest",
+			"Basis.Scripts.BasisSdk.Constraints.BasisParentConstraint.rotationAtRest",
+			"Basis.Scripts.BasisSdk.Constraints.BasisParentConstraint.translationOffsets",
+			"Basis.Scripts.BasisSdk.Constraints.BasisParentConstraint.rotationOffsets",
+			"Basis.Scripts.BasisSdk.Constraints.BasisParentConstraint.translationAxis",
+			"Basis.Scripts.BasisSdk.Constraints.BasisParentConstraint.rotationAxis",
+			"Basis.Scripts.BasisSdk.Constraints.BasisAimConstraint.aimVector",
+			"Basis.Scripts.BasisSdk.Constraints.BasisAimConstraint.upVector",
+			"Basis.Scripts.BasisSdk.Constraints.BasisAimConstraint.worldUpType",
+			"Basis.Scripts.BasisSdk.Constraints.BasisAimConstraint.worldUpObject",
+			"Basis.Scripts.BasisSdk.Constraints.BasisAimConstraint.worldUpVector",
+			"Basis.Scripts.BasisSdk.Constraints.BasisAimConstraint.rotationAtRest",
+			"Basis.Scripts.BasisSdk.Constraints.BasisAimConstraint.rotationOffset",
+			"Basis.Scripts.BasisSdk.Constraints.BasisAimConstraint.rotationAxis",
+			"Basis.Scripts.BasisSdk.Constraints.BasisLookAtConstraint.roll",
+			"Basis.Scripts.BasisSdk.Constraints.BasisLookAtConstraint.useUpObject",
+			"Basis.Scripts.BasisSdk.Constraints.BasisLookAtConstraint.worldUpObject",
+			"Basis.Scripts.BasisSdk.Constraints.BasisLookAtConstraint.rotationAtRest",
+			"Basis.Scripts.BasisSdk.Constraints.BasisLookAtConstraint.rotationOffset",
+			"Basis.Scripts.BasisSdk.Constraints.BasisBlendConstraint.blendPosition",
+			"Basis.Scripts.BasisSdk.Constraints.BasisBlendConstraint.blendRotation",
+			"Basis.Scripts.BasisSdk.Constraints.BasisBlendConstraint.positionWeight",
+			"Basis.Scripts.BasisSdk.Constraints.BasisBlendConstraint.rotationWeight",
+			"Basis.Scripts.BasisSdk.Constraints.BasisBlendConstraint.translationAtRest",
+			"Basis.Scripts.BasisSdk.Constraints.BasisBlendConstraint.rotationAtRest",
+			"Basis.Scripts.BasisSdk.Constraints.BasisBlendConstraint.translationAxis",
+			"Basis.Scripts.BasisSdk.Constraints.BasisBlendConstraint.rotationAxis",
+			"Basis.Scripts.BasisSdk.Constraints.BasisOverrideTransform.useSource",
+			"Basis.Scripts.BasisSdk.Constraints.BasisOverrideTransform.space",
+			"Basis.Scripts.BasisSdk.Constraints.BasisOverrideTransform.position",
+			"Basis.Scripts.BasisSdk.Constraints.BasisOverrideTransform.rotation",
+			"Basis.Scripts.BasisSdk.Constraints.BasisOverrideTransform.positionWeight",
+			"Basis.Scripts.BasisSdk.Constraints.BasisOverrideTransform.rotationWeight",
+			"Basis.Scripts.BasisSdk.Constraints.BasisOverrideTransform.translationAxis",
+			"Basis.Scripts.BasisSdk.Constraints.BasisOverrideTransform.rotationAxis",
+			"Basis.Scripts.BasisSdk.Constraints.BasisDampedTransform.dampPosition",
+			"Basis.Scripts.BasisSdk.Constraints.BasisDampedTransform.dampRotation",
+			"Basis.Scripts.BasisSdk.Constraints.BasisDampedTransform.maintainAim",
+			"Basis.Scripts.BasisSdk.Constraints.BasisTwistCorrection.twistAxis",
+			"Basis.Scripts.BasisSdk.Constraints.BasisTwistCorrection.twistWeight",
+			"Basis.Scripts.BasisSdk.Constraints.BasisTwoBoneIK.targetPositionWeight",
+			"Basis.Scripts.BasisSdk.Constraints.BasisTwoBoneIK.targetRotationWeight",
+			"Basis.Scripts.BasisSdk.Constraints.BasisTwoBoneIK.hintWeight",
+			"Basis.Scripts.BasisSdk.Constraints.BasisTwoBoneIK.maintainTargetOffset",
+			"Basis.Scripts.BasisSdk.Constraints.BasisChainIK.chainRotationWeight",
+			"Basis.Scripts.BasisSdk.Constraints.BasisChainIK.tipRotationWeight",
+			"Basis.Scripts.BasisSdk.Constraints.BasisChainIK.tolerance",
+			"Basis.Scripts.BasisSdk.Constraints.BasisChainIK.maxIterations",
+			"Basis.Scripts.BasisSdk.Constraints.BasisTwistChain.blend",
+			"Basis.Scripts.BasisSdk.Constraints.BasisTwistChain.rotationAtRest",
+			"Basis.Scripts.BasisSdk.Constraints.BasisMultiReferential.driver",
 
 			// Sync shim configuration. These are plain fields rather than { get; set; } pairs, so
 			// unlike a property they need naming here — field access is default-deny, methods are
@@ -389,6 +479,8 @@ namespace Cilbox
 			"Basis.Shims.BasisBlendShapeSyncShim.Enabled",
 			"BasisPlatformSwitch.Rules",
 			"BasisPlatformSwitchRule.*",
+
+			"UnityEngine.UI.Toggle.onValueChanged",
 
 			// Unity Event Systems fields
 			"UnityEngine.EventSystems.EventTrigger+Entry.eventID",
@@ -422,8 +514,9 @@ namespace Cilbox
 			//   get_AvatarTransform/AvatarAnimatorTransform/PlayerSelf/Transform/AvatarParent — a
 			//     Transform is default-allow once handed over, so these are write handles.
 			//   get_GameObject — SetActive is allowed on GameObject; that hides or breaks a player.
-			//   get_UUID — stable across instances, so it lets any world fingerprint and correlate
-			//     users between visits. PlayerId covers per-session identity.
+			// get_UUID is allowed by the maintainer's call (2026-10-15): it is stable across instances,
+			// so content can recognise a returning player. Web requests that could carry it off-device
+			// are consent- and per-site-gated in BasisWebRequestShim.
 			//   add/remove_OnAvatarSwitched — an interpreted delegate cannot be unsubscribed, and
 			//     this event outlives the script.
 			//   get_AudioReceived — hands back a Delegate.
@@ -434,6 +527,7 @@ namespace Cilbox
 				"get_PlayerPlatform",
 				"get_DisplayName",
 				"get_SafeDisplayName",
+				"get_UUID",
 				"get_IsConsideredFallBackAvatar",
 				"get_AvatarLoadMode",
 				"get_FaceIsVisible",
@@ -447,12 +541,18 @@ namespace Cilbox
 				} },
 			{ typeof(Basis.SafeUtil), new HashSet<string>{
 				".ctor",
+				nameof(Basis.SafeUtil.GetCurrentLanguage),
 				nameof(Basis.SafeUtil.AddEventTrigger),
 				nameof(Basis.SafeUtil.MakeNetworkable),
 				nameof(Basis.SafeUtil.MakeInteractable),
 				nameof(Basis.SafeUtil.GetExecutionBudgetUs),
 				nameof(Basis.SafeUtil.GetRemainingExecutionBudgetUs),
 				nameof(Basis.SafeUtil.GetLastFrameExecutionUs),
+				nameof(Basis.SafeUtil.GetContentGroupId),
+				nameof(Basis.SafeUtil.GetContentNetworkId),
+				nameof(Basis.SafeUtil.GetContentName),
+				nameof(Basis.SafeUtil.GetContentAuthor),
+				nameof(Basis.SafeUtil.GetContentTags),
 				} },
 			{ typeof(BasisContent), new HashSet<string>{ "SpawnedByLocalPlayer" } },
 			// Read-only identity. AssignContentIdentifier and get_ContentInformation are held back:
@@ -463,6 +563,50 @@ namespace Cilbox
 				"get_clientIdentifier",
 				"get_SpawnedByLocalPlayer",
 				} },
+			{ typeof(BasisConstraintBase), new HashSet<string>{
+				$"get_{nameof(BasisConstraintBase.constraintType)}",
+				$"get_{nameof(BasisConstraintBase.sourceCount)}",
+				nameof(BasisConstraintBase.GetSource),
+				nameof(BasisConstraintBase.SetSource),
+				nameof(BasisConstraintBase.GetSources),
+				nameof(BasisConstraintBase.SetSources),
+				nameof(BasisConstraintBase.AddSource),
+				nameof(BasisConstraintBase.RemoveSource),
+				nameof(BasisConstraintBase.ClearSources),
+				nameof(BasisConstraintBase.CaptureRest),
+				} },
+			{ typeof(BasisPositionConstraint), new HashSet<string>() },
+			{ typeof(BasisRotationConstraint), new HashSet<string>() },
+			{ typeof(BasisScaleConstraint), new HashSet<string>() },
+			{ typeof(BasisParentConstraint), new HashSet<string>{ nameof(BasisParentConstraint.CaptureOffsets) } },
+			{ typeof(BasisAimConstraint), new HashSet<string>() },
+			{ typeof(BasisLookAtConstraint), new HashSet<string>() },
+			{ typeof(BasisBlendConstraint), new HashSet<string>() },
+			{ typeof(BasisOverrideTransform), new HashSet<string>{
+				nameof(BasisOverrideTransform.CaptureSourceBind),
+				$"get_{nameof(BasisOverrideTransform.SourceInvBindPosition)}",
+				$"get_{nameof(BasisOverrideTransform.SourceInvBindRotation)}",
+				$"get_{nameof(BasisOverrideTransform.SourceToSpaceRotation)}",
+				} },
+			{ typeof(BasisDampedTransform), new HashSet<string>{
+				$"get_{nameof(BasisDampedTransform.BindPosition)}",
+				$"get_{nameof(BasisDampedTransform.BindRotation)}",
+				$"get_{nameof(BasisDampedTransform.AimBindAxis)}",
+				} },
+			{ typeof(BasisTwistCorrection), new HashSet<string>{
+				$"get_{nameof(BasisTwistCorrection.SourceInverseBindRotation)}",
+				$"get_{nameof(BasisTwistCorrection.TwistBindRotation)}",
+				$"get_{nameof(BasisTwistCorrection.TwistAxisVector)}",
+				} },
+			{ typeof(BasisTwoBoneIK), new HashSet<string>{
+				$"get_{nameof(BasisTwoBoneIK.TargetOffsetPosition)}",
+				$"get_{nameof(BasisTwoBoneIK.TargetOffsetRotation)}",
+				nameof(BasisTwoBoneIK.ResolveMid),
+				nameof(BasisTwoBoneIK.ResolveRoot),
+				} },
+			{ typeof(BasisChainIK), new HashSet<string>() },
+			{ typeof(BasisTwistChain), new HashSet<string>{ $"get_{nameof(BasisTwistChain.BindOffset)}" } },
+			{ typeof(BasisMultiReferential), new HashSet<string>{ $"get_{nameof(BasisMultiReferential.ResolvedDriver)}" } },
 			{ typeof(UnityEngine.GameObject),          new HashSet<string>{
 				nameof(UnityEngine.GameObject.SetActive),
 				nameof(UnityEngine.GameObject.GetComponent),
@@ -543,6 +687,33 @@ namespace Cilbox
 		protected abstract HashSet<string> ExtraWhiteListFields { get; }
 		protected abstract Dictionary<Type, HashSet<string>> ExtraMethodWhitelist { get; }
 
+		internal CilboxBasisConsent.State consentState;
+		internal string consentHash;
+		internal HashSet<string> consentGranted;
+		internal CilboxBasisConsent.Scan consentScan;
+		internal string saveContentKey;
+		internal HashSet<string> saveStores;
+		internal double saveWindowStart;
+		internal int saveWindowWrites;
+		internal double hapticWindowStart;
+		internal int hapticWindowPulses;
+
+		protected bool Beyond(string item, bool floor)
+		{
+			if (consentScan != null)
+			{
+				(floor ? consentScan.Blocked : consentScan.Items).Add(item);
+				return true;
+			}
+			return !floor && CilboxBasisConsent.Permits(this, item);
+		}
+
+		internal static string MethodItem(Type declaringType, string name)
+		{
+			string type = declaringType != null && declaringType.FullName != null ? GetSanitizedTypeName(declaringType) : "?";
+			return CilboxItems.MethodPrefix + type + "." + name;
+		}
+
 		// Denied regardless of what a wildcard covers: "System.Int*" is a bare prefix match
 		// and would otherwise admit System.IntPtr.
 		private static readonly HashSet<string> hardDeniedTypes = new HashSet<string>(StringComparer.Ordinal)
@@ -553,11 +724,38 @@ namespace Cilbox
 			"System.RuntimeFieldHandle",
 			"System.RuntimeMethodHandle",
 			"System.RuntimeTypeHandle",
+			"System.Runtime.CompilerServices.Unsafe",
+			"System.Runtime.InteropServices.Marshal",
+			"System.Runtime.InteropServices.MemoryMarshal",
+			"System.Runtime.InteropServices.GCHandle",
+			"System.Runtime.InteropServices.NativeLibrary",
+			"BasisLinkSafety",
+			"BasisContentShareText",
+			"Basis.BasisUI.BasisExternalLinks",
+			"Basis.BasisUI.BasisWebRequests",
+			"Basis.Scripts.BasisSdk.Interactions.BasisUserActivation",
 		};
 
-		public override bool CheckTypeAllowed(string sType)
+		public override bool CheckTypeAllowed(Type t)
 		{
-			if (sType != null && hardDeniedTypes.Contains(sType)) return false;
+			if (t == null || t.FullName == null) return false;
+			if (t.IsPointer) return Beyond(CilboxItems.TypePrefix + t.FullName, true);
+			return CheckTypeAllowed(GetSanitizedTypeName(t));
+		}
+
+		public override bool CheckFieldAllowed(Type t, string sFieldName)
+		{
+			if (t == null || t.FullName == null) return false;
+			if (t.IsPointer) return Beyond(CilboxItems.FieldPrefix + t.FullName + "." + sFieldName, true);
+			FieldInfo field = t.GetField(sFieldName, BindingFlags.Static | BindingFlags.Public | BindingFlags.Instance);
+			if (field != null && field.FieldType.IsPointer) return Beyond(CilboxItems.FieldPrefix + GetSanitizedTypeName(t) + "." + sFieldName, true);
+			return CheckFieldAllowed(GetSanitizedTypeName(t), sFieldName);
+		}
+
+		public bool CheckTypeAllowed(string sType)
+		{
+			if (sType == null) return false;
+			if (hardDeniedTypes.Contains(sType)) return Beyond(CilboxItems.TypePrefix + sType, true);
 			if (commonWhiteListType.Contains(sType)) return true;
 			if (ExtraWhiteListType.Contains(sType)) return true;
 			foreach (var allowedType in commonWhiteListType)
@@ -568,10 +766,10 @@ namespace Cilbox
 			{
 				if (MatchesWildcard(allowedType, sType)) return true;
 			}
-			return false;
+			return Beyond(CilboxItems.TypePrefix + sType, false);
 		}
 
-		public override bool CheckFieldAllowed(string sType, string sFieldName)
+		public bool CheckFieldAllowed(string sType, string sFieldName)
 		{
 			if (!CheckTypeAllowed(sType)) return false;
 			string fullField = sType + "." + sFieldName;
@@ -585,13 +783,71 @@ namespace Cilbox
 			{
 				if (MatchesWildcard(allowedField, fullField)) return true;
 			}
-			return false;
+			return Beyond(CilboxItems.FieldPrefix + fullField, false);
 		}
 
 		public override bool CheckMethodAllowed(out MethodInfo mi, Type declaringType, string name, SerializedTypeDescriptor[] parametersIn, SerializedTypeDescriptor[] genericArgumentsIn, string fullSignature)
 		{
 			mi = null;
 
+			if (fullSignature != null && fullSignature.IndexOf('*') >= 0) return Beyond(MethodItem(declaringType, name), true);
+
+			// Redirect every UnityEngine.Object.Instantiate variant through the sanitizing
+			// shim so spawned prefabs are scrubbed (disallowed components destroyed,
+			// persistent UnityEvent listeners killed) while parked under a disabled host
+			// before they become active in hierarchy.
+			if (declaringType == typeof(UnityEngine.Object) &&
+				(name == "Instantiate" || name == "InstantiateAsync"))
+			{
+				mi = Basis.Shims.BasisCilboxInstantiateShim.ResolveShim(
+					usage, name, parametersIn, genericArgumentsIn, fullSignature);
+				return mi != null;
+			}
+
+			if (declaringType == typeof(UnityEngine.Application) && name == nameof(UnityEngine.Application.OpenURL))
+			{
+				mi = typeof(Basis.Shims.BasisExternalLinkShim).GetMethod(nameof(Basis.Shims.BasisExternalLinkShim.OpenURL), BindingFlags.Static | BindingFlags.NonPublic, null, new[] { typeof(string) }, null);
+				return mi != null;
+			}
+
+			// NativeArray<T> only bounds-checks its indexer under ENABLE_UNITY_COLLECTIONS_CHECKS,
+			// which release players do not define. Restricted to the members that copy out.
+			if (declaringType != null && declaringType.IsGenericType &&
+				declaringType.GetGenericTypeDefinition().FullName == "Unity.Collections.NativeArray`1")
+			{
+				return name == "get_Length" || name == "get_IsCreated" ||
+					   name == "ToArray" || name == "CopyTo" ||
+					   name == "Equals" || name == "GetHashCode" || name == "ToString" ||
+					   Beyond(MethodItem(declaringType, name), true);
+			}
+
+			if (declaringType == typeof(Basis.Shims.BasisSaveShim))
+			{
+				if (name != nameof(Basis.Shims.BasisSaveShim.Save) && name != nameof(Basis.Shims.BasisSaveShim.Load) && name != nameof(Basis.Shims.BasisSaveShim.Delete)) return Beyond(MethodItem(declaringType, name), true);
+				Beyond(MethodItem(declaringType, name), false);
+			}
+
+			if (declaringType == typeof(Basis.Shims.BasisServerStorageShim))
+			{
+				if (!CilboxServerStorage.IsEntryPoint(name)) return Beyond(MethodItem(declaringType, name), true);
+				if (CilboxServerStorage.NeedsConsent(name)) Beyond(MethodItem(declaringType, name), false);
+			}
+
+			// Same shape as server storage: only the public entry points resolve, and the
+			// request methods record a consent item that the shim re-checks on every call.
+			if (declaringType == typeof(Basis.Shims.BasisWebRequestShim))
+			{
+				if (this is CilboxAvatarBasis || !CilboxWebRequests.IsEntryPoint(name)) return Beyond(MethodItem(declaringType, name), true);
+				if (CilboxWebRequests.NeedsConsent(name)) Beyond(MethodItem(declaringType, name), false);
+			}
+
+			if (declaringType == typeof(Basis.Shims.BasisHapticsShim) && !CilboxHaptics.IsEntryPoint(name)) return Beyond(MethodItem(declaringType, name), true);
+
+			return CuratedMethodAllowed(declaringType, name) || Beyond(MethodItem(declaringType, name), false);
+		}
+
+		private bool CuratedMethodAllowed(Type declaringType, string name)
+		{
 			if (name.Contains("Invoke")) return false;
 
 			// UnityEngine.Application.OpenURL opens an arbitrary URL in the native browser.
@@ -611,18 +867,6 @@ namespace Cilbox
 				name.StartsWith("Load", StringComparison.Ordinal)))
 				return false;
 
-			// Redirect every UnityEngine.Object.Instantiate variant through the sanitizing
-			// shim so spawned prefabs are scrubbed (disallowed components destroyed,
-			// persistent UnityEvent listeners killed) while parked under a disabled host
-			// before they become active in hierarchy.
-			if (declaringType == typeof(UnityEngine.Object) &&
-				(name == "Instantiate" || name == "InstantiateAsync"))
-			{
-				mi = Basis.Shims.BasisCilboxInstantiateShim.ResolveShim(
-					usage, name, parametersIn, genericArgumentsIn, fullSignature);
-				return mi != null;
-			}
-
 			// SendMessage / BroadcastMessage / AddComponent reach behaviours by name and
 			// bypass cilbox sanitisation.
 			if (declaringType == typeof(UnityEngine.GameObject) && (
@@ -641,16 +885,6 @@ namespace Cilbox
 				name == "GetBehaviours"))
 				return false;
 
-			// NativeArray<T> only bounds-checks its indexer under ENABLE_UNITY_COLLECTIONS_CHECKS,
-			// which release players do not define. Restricted to the members that copy out.
-			if (declaringType != null && declaringType.IsGenericType &&
-				declaringType.GetGenericTypeDefinition().FullName == "Unity.Collections.NativeArray`1")
-			{
-				return name == "get_Length" || name == "get_IsCreated" ||
-					   name == "ToArray" || name == "CopyTo" ||
-					   name == "Equals" || name == "GetHashCode" || name == "ToString";
-			}
-
 			bool inCommon = commonMethodWhitelist.TryGetValue(declaringType, out var commonAllowed);
 			bool inExtra = ExtraMethodWhitelist.TryGetValue(declaringType, out var extraAllowed);
 			if (inCommon || inExtra)
@@ -660,6 +894,15 @@ namespace Cilbox
 			}
 
 			return true;
+		}
+
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+		static void LoadBclFacades()
+		{
+			foreach (string name in new[] { "mscorlib", "System", "System.Core" })
+			{
+				try { Assembly.Load(new AssemblyName(name)); } catch (Exception) { }
+			}
 		}
 
 		public override bool GetTypeOverride(string sType, out Type t)

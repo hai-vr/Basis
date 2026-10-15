@@ -1,3 +1,4 @@
+using Basis.Editor.Localization;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -26,10 +27,11 @@ public class BasisMediaPlayerNetworkingInspector : Editor
         var sheet = AssetDatabase.LoadAssetAtPath<StyleSheet>(UssPath);
         if (tree == null)
         {
-            _root.Add(new HelpBox("MediaPlayerNetworkingSDK.uxml missing.", HelpBoxMessageType.Error));
+            _root.Add(new HelpBox(BasisEditorLocalization.Get("editor.mediaPlayer.inspector.uxmlMissing", "MediaPlayerNetworkingSDK.uxml"), HelpBoxMessageType.Error));
             return _root;
         }
         tree.CloneTree(_root);
+        BasisEditorLocalization.LocalizeTree(_root, "editor.mediaPlayer.uxml.networking.");
         if (sheet != null) _root.styleSheets.Add(sheet);
 
         BindByName("AdminOnlyField", "AdminOnly");
@@ -113,7 +115,7 @@ public class BasisMediaPlayerNetworkingInspector : Editor
         l.RemoveFromClassList("bvp-pill-good");
         l.RemoveFromClassList("bvp-pill-bad");
         if (!live) { l.text = "—"; l.AddToClassList("bvp-pill-neutral"); return; }
-        l.text = value ? "YES" : "NO";
+        l.text = BasisEditorLocalization.Get(value ? "sdk.cilbox.state.yes" : "sdk.cilbox.state.no");
         l.AddToClassList(value ? "bvp-pill-good" : "bvp-pill-bad");
     }
 

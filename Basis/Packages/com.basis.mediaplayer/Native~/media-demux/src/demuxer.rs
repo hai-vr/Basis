@@ -101,6 +101,23 @@ pub trait Demuxer: Send {
         MediaTime::ZERO
     }
 
+    /// Where the bound video track's pictures end on the same timeline,
+    /// when the container says the track stops before its media does. A
+    /// sample shown past it is still emitted where a picture shown before it
+    /// depends on that sample, but a decoded picture at or after it is not
+    /// shown.
+    /// `None` where the media plays to its end. Read once after open.
+    fn video_end(&self) -> Option<MediaTime> {
+        None
+    }
+
+    /// Where the bound audio track's sound ends (see [`Self::video_end`]):
+    /// decoded sound at or after it is encoder padding or a trimmed tail and
+    /// is not played.
+    fn audio_end(&self) -> Option<MediaTime> {
+        None
+    }
+
     /// Drain per-track findings (tracks left aside, fallbacks taken) for
     /// the engine to surface as diagnostics.
     fn take_notes(&mut self) -> Vec<String> {
