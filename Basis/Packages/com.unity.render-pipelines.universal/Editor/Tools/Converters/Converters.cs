@@ -130,7 +130,8 @@ namespace UnityEditor.Rendering.Universal
             // Description
             helpMessage.AppendLine("\n");
             helpMessage.AppendLine( "The batchmode converter is a tool to help you upgrade your projects from one scriptable render pipeline\n" +
-                                   "to another.");
+                                   "to another. Using this API can lead to incomplete or unpredictable conversion outcomes.\n" +
+                                   "For reliable results, please perform the conversion via the dedicated window: Window > Rendering > Render Pipeline Converter.");
             helpMessage.AppendLine("\n");
 
             // Usage
@@ -253,23 +254,8 @@ namespace UnityEditor.Rendering.Universal
         /// <param name="isInclusive">Whether the list of converters will be included or excluded when batching.</param>
         public static void RunInBatchMode(string containerName, List<string> convertedTypes, bool isInclusive)
         {
-            RunInBatchMode(containerName, convertedTypes, isInclusive, null);
-        }
-
-        // Overload used by RunInBatchModeCmdLine to detect conversions that didn't finish synchronously.
-        internal static void RunInBatchMode(string containerName, List<string> convertedTypes, bool isInclusive, Action<string> onCompleted)
-        {
             var types = FilterConverters(containerName, convertedTypes, isInclusive);
-            RunInBatchMode(types, onCompleted);
-        }
-
-        // Runs the given container's converters, and invokes onCompleted once every converter has actually
-        // finished, since some converters (eg those backed by the Search service) scan asynchronously over
-        // several Editor updates and RunInBatchMode returns before they are done.
-        internal static void RunInBatchModeWithCallback(string containerName, Action<string> onCompleted)
-        {
-            var types = FilterConverters(containerName, null, isInclusive: false);
-            RunInBatchMode(types, onCompleted);
+            RunInBatchMode(types);
         }
 
         /// <summary>
@@ -279,6 +265,7 @@ namespace UnityEditor.Rendering.Universal
         public static void RunInBatchModeCmdLine()
         {
             Debug.Log("BATCH MODE COMMAND LINE\n");
+            var exitCode = 0;
             try
             {
                 var args = ParseArgs(Environment.GetCommandLineArgs());
@@ -327,64 +314,23 @@ namespace UnityEditor.Rendering.Universal
                     var scanFilePath = ScanToFile(FilterConverters(converter[0], filteredTypes, hasInclusive),
                         scanFileName[0], status => scanStatus = status);
 
-                    ExitWhenDone(() => scanStatus != null, () =>
-                    {
-                        if (scanStatus == "Completed")
-                        {
-                            EditorApplication.Exit(0);
-                        }
-                        else
-                        {
-                            Debug.LogError($"ConverterCli failed: The converters did not complete their scan (status: {scanStatus}), {scanFilePath} does not contain usable results.");
-                            EditorApplication.Exit(1);
-                        }
-                    });
+                    // Batch mode exits as soon as this method returns, so a scan which didn't finish, or which couldn't write its results, is an error
+                    if (scanStatus != "Completed")
+                        throw new InvalidOperationException($"The converters did not complete their scan (status: {scanStatus ?? "still scanning"}), {scanFilePath} does not contain usable results.");
                 }
                 else
                 {
-                    var completed = false;
-                    RunInBatchMode(converter[0], filteredTypes, hasInclusive, result => completed = true);
-
-                    ExitWhenDone(() => completed, () => EditorApplication.Exit(0));
+                    RunInBatchMode(converter[0], filteredTypes, hasInclusive);
                 }
             }
             catch (Exception ex)
             {
                 Debug.LogError($"ConverterCli failed: {ex.Message}\n{ex}");
-                EditorApplication.Exit(1);
+                exitCode = 1;
             }
-        }
-
-        // Converters and scans can run asynchronously (eg via the Search service) over several Editor updates.
-        // Batch mode only exits when something calls EditorApplication.Exit, so this keeps giving it those
-        // updates for up to k_CmdLineTimeoutSeconds, instead of exiting as soon as the caller returns.
-        // onDone must not throw: by the time it runs from Tick, the caller's try/catch is gone.
-        const double k_CmdLineTimeoutSeconds = 600.0;
-
-        static void ExitWhenDone(Func<bool> isDone, Action onDone)
-        {
-            if (isDone())
+            finally
             {
-                onDone();
-                return;
-            }
-
-            var timeoutTime = EditorApplication.timeSinceStartup + k_CmdLineTimeoutSeconds;
-            EditorApplication.update += Tick;
-
-            void Tick()
-            {
-                if (isDone())
-                {
-                    EditorApplication.update -= Tick;
-                    onDone();
-                }
-                else if (EditorApplication.timeSinceStartup > timeoutTime)
-                {
-                    EditorApplication.update -= Tick;
-                    Debug.LogError($"ConverterCli failed: Timed out after {k_CmdLineTimeoutSeconds} seconds waiting for the converters to finish.");
-                    EditorApplication.Exit(1);
-                }
+                EditorApplication.Exit(exitCode);
             }
         }
 
@@ -393,11 +339,13 @@ namespace UnityEditor.Rendering.Universal
         /// </summary>
         /// <param name="converterTypes">The list of converters to run</param>
         /// <returns>False if there were errors.</returns>
-        internal static bool RunInBatchMode(List<Type> converterTypes, Action<string> onCompleted = null)
+        internal static bool RunInBatchMode(List<Type> converterTypes)
         {
+            Debug.LogWarning($"Using this API can lead to incomplete or unpredictable conversion outcomes. For reliable results, please perform the conversion via the dedicated window: Window > Rendering > Render Pipeline Converter.");
+
             var convertersToExecute = CreateConverters(converterTypes, out var errors);
 
-            BatchConverters(convertersToExecute, onCompleted);
+            BatchConverters(convertersToExecute);
 
             return !errors;
         }
@@ -473,12 +421,6 @@ namespace UnityEditor.Rendering.Universal
                 scan.result.converters.Add(converterResult);
 
                 var converterFinished = false;
-
-                if (!converter.isEnabled)
-                {
-                    OnConverterScanFinished(succeeded: true);
-                    continue;
-                }
 
                 try
                 {
@@ -577,56 +519,13 @@ namespace UnityEditor.Rendering.Universal
             scan.onScanFinished?.Invoke(status);
         }
 
-        static void BatchConverters(List<IRenderPipelineConverter> converters, Action<string> onCompleted = null)
+        static void BatchConverters(List<IRenderPipelineConverter> converters)
         {
-            if (converters.Count == 0)
-            {
-                AssetDatabase.SaveAssets();
-                onCompleted?.Invoke(string.Empty);
-                return;
-            }
-
-            var pendingConverters = converters.Count;
-            var aggregatedResults = new StringBuilder();
-
-            // Only save once every converter is done, since converters that scan asynchronously (eg via the
-            // Search service) would otherwise still be writing their results.
-            void OnConverterFinished(string conversionResult)
-            {
-                aggregatedResults.Append(conversionResult);
-                if (--pendingConverters == 0)
-                {
-                    AssetDatabase.SaveAssets();
-                    onCompleted?.Invoke(aggregatedResults.ToString());
-                }
-            }
-
             foreach (var converter in converters)
             {
-                var converterInfo = converter.GetType().GetCustomAttribute<BatchModeConverterClassInfo>();
-                var converterType = converterInfo != null ? converterInfo.converterType : converter.GetType().Name;
-
-                // A converter that reports itself unavailable (eg a required package isn't installed) has
-                // nothing to convert, just like the Render Pipeline Converter window, which excludes it before
-                // ever calling Scan.
-                if (!converter.isEnabled)
-                {
-                    OnConverterFinished(string.Empty);
-                    continue;
-                }
-
                 var sb = StringBuilderPool.Get();
 
-                try
-                {
-                    converter.Scan(OnConverterCompleteDataCollection);
-                }
-                catch (Exception e)
-                {
-                    // A converter that throws must not leave the batch hanging, or abort the rest of it
-                    Debug.LogError($"Converter {converterType} failed to scan: {e.Message}\n{e}");
-                    OnConverterFinished(string.Empty);
-                }
+                converter.Scan(OnConverterCompleteDataCollection);
 
                 void OnConverterCompleteDataCollection(List<IRenderPipelineConverterItem> items)
                 {
@@ -634,13 +533,9 @@ namespace UnityEditor.Rendering.Universal
                     var leafItems = new List<IRenderPipelineConverterItem>();
                     RenderPipelineConverterUtility.CollectLeafItems(items, leafItems);
 
-                    bool anyWarningsOrErrors = false;
                     converter.BeforeConvert();
                     foreach (var item in leafItems)
                     {
-                        if (!item.isEnabled)
-                            continue;
-
                         var status = converter.Convert(item, out var message);
                         switch (status)
                         {
@@ -648,28 +543,24 @@ namespace UnityEditor.Rendering.Universal
                                 throw new InvalidOperationException("Converter returned a pending status when converting. This is not supported.");
                             case Status.Error:
                             case Status.Warning:
-                                sb.AppendLine($"- {status}\t{converterType}\t{item.name}\t{item.info}\t{message}");
-                                anyWarningsOrErrors = true;
+                                sb.AppendLine($"- {item.name} ({status}) ({message})");
                                 break;
                             case Status.Success:
-                                sb.AppendLine($"- {status}\t{converterType}\t{item.name}\t{item.info}");
-                                break;
+                            {
+                                sb.AppendLine($"- {item.name} ({status})");
+                            }
+                            break;
                         }
                     }
                     converter.AfterConvert();
 
                     var conversionResult = sb.ToString();
                     if (!string.IsNullOrEmpty(conversionResult))
-                    {
-                        if (anyWarningsOrErrors)
-                            Debug.LogWarning(conversionResult);
-                        else
-                            Debug.Log(conversionResult);
-                    }
-
-                    OnConverterFinished(conversionResult);
+                        Debug.Log(sb.ToString());
                 }
             }
+
+            AssetDatabase.SaveAssets();
         }
     }
 }

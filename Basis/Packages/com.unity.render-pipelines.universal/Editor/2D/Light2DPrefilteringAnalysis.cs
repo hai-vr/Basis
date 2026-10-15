@@ -63,12 +63,8 @@ namespace UnityEditor.Rendering.Universal
 
                 Scene scene = EditorSceneManager.GetSceneByPath(sceneSettings.path);
                 bool weOpenedIt = !scene.isLoaded;
-
-                // Open as a preview scene rather than additively: Light2DManager registers preview
-                // scene lights in a per scene list, so a global light in a build scene can't be
-                // mistaken for a duplicate of one in a scene the user already has open.
                 if (weOpenedIt)
-                    scene = EditorSceneManager.OpenPreviewScene(sceneSettings.path);
+                    scene = EditorSceneManager.OpenScene(sceneSettings.path, OpenSceneMode.Additive);
 
                 try
                 {
@@ -76,11 +72,11 @@ namespace UnityEditor.Rendering.Universal
                 }
                 finally
                 {
-                    // Close before moving on so Light2DManager doesn't accumulate lights across
+                    // Close before moving on so Light2DManager.s_Lights doesn't accumulate across
                     // scenes (otherwise duplicate-global-light asserts can fire against lights from
                     // previously opened scenes).
                     if (weOpenedIt)
-                        EditorSceneManager.ClosePreviewScene(scene);
+                        EditorSceneManager.CloseScene(scene, true);
                 }
             }
 

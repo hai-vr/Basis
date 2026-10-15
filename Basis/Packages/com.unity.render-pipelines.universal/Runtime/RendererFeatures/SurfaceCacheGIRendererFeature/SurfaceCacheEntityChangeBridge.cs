@@ -214,10 +214,8 @@ namespace UnityEngine.Rendering.Universal
 
         static void ClearPending()
         {
-            if (s_PendingChanged.Length != 0)
-                s_PendingChangedIndex.Clear();
-
             s_PendingChanged.Clear();
+            s_PendingChangedIndex.Clear();
             s_PendingMaterials.Clear();
             s_PendingDestroyed.Clear();
             s_RetainedTransformCount = 0;
