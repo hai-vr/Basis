@@ -95,10 +95,10 @@ namespace Basis.Scripts.Drivers
             BasisAvatarIKStageCalibration.BasisLimbRollStore.TrackerToBone.Clear();
 
             player.LocalRigDriver.CleanupBeforeContinue();
-            GameObject AvatarAnimatorParent = player.BasisAvatar.Animator.gameObject;
             ScaleAvatarModification.ReInitialize(player.BasisAvatar.Animator, player.AvatarTransform);
 
             player.BasisAvatar.Animator.updateMode = AnimatorUpdateMode.Normal;
+            player.BasisAvatar.Animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
             player.BasisAvatar.Animator.logWarnings = false;
 
             if (player.BasisAvatar.Animator.runtimeAnimatorController == null)
