@@ -1619,6 +1619,162 @@
       "value": "Where the picture sits down the window when there are bars above and below, or which part of the shot is kept when it is cropped to fill. 50% is centred, 100% is the top."
     },
     {
+      "key": "camera.directToScreen.display",
+      "value": "Output Window"
+    },
+    {
+      "key": "camera.directToScreen.display.description",
+      "value": "Which window the feed goes to. The main window shows it in place of the headset mirror while you are in VR. Any other display opens its own window on that monitor, which works in VR and on desktop. A window opened on another monitor stays open (black) until Basis restarts."
+    },
+    {
+      "key": "camera.directToScreen.display.main",
+      "value": "Main Window"
+    },
+    {
+      "key": "camera.directToScreen.display.window",
+      "value": "Display {0}"
+    },
+    {
+      "key": "camera.directToScreen.presentingWindow",
+      "value": "Showing in its own window on display {0}."
+    },
+    {
+      "key": "camera.directToScreen.displayNotConnected",
+      "value": "Display {0} is not connected. Plug in another monitor or pick the main window."
+    },
+    {
+      "key": "camera.passes",
+      "value": "Render Passes"
+    },
+    {
+      "key": "camera.passes.output",
+      "value": "Output"
+    },
+    {
+      "key": "camera.passes.output.description",
+      "value": "What this camera shows and sends out: the picture, one render pass in its place, or a quad view of all of them. It applies to the viewfinder, Direct To Screen, the live output, recordings and photos."
+    },
+    {
+      "key": "camera.passes.output.picture",
+      "value": "Picture"
+    },
+    {
+      "key": "camera.passes.output.picture.tooltip",
+      "value": "The finished picture, exactly as the camera shoots it."
+    },
+    {
+      "key": "camera.passes.output.depth",
+      "value": "Depth"
+    },
+    {
+      "key": "camera.passes.output.depth.tooltip",
+      "value": "Distance from the lens: near is white, fading to black at the depth range. EXR photos keep the real distance in metres."
+    },
+    {
+      "key": "camera.passes.output.normals",
+      "value": "Normals"
+    },
+    {
+      "key": "camera.passes.output.normals.tooltip",
+      "value": "Which way each surface faces, as the camera sees it: red points right, green points up and blue faces the lens. EXR photos keep the raw -1 to 1 values."
+    },
+    {
+      "key": "camera.passes.output.mask",
+      "value": "Mask"
+    },
+    {
+      "key": "camera.passes.output.mask.tooltip",
+      "value": "Players and props in white on black, cut away wherever the world is in front of them. Use it as a matte to lift them out of the shot."
+    },
+    {
+      "key": "camera.passes.output.motion",
+      "value": "Motion"
+    },
+    {
+      "key": "camera.passes.output.motion.tooltip",
+      "value": "How each pixel moved since the last frame: the colour is the direction and its strength is the speed. EXR photos keep the movement in pixels."
+    },
+    {
+      "key": "camera.passes.output.quad",
+      "value": "Quad View"
+    },
+    {
+      "key": "camera.passes.output.quad.tooltip",
+      "value": "Picture, depth, normals and mask in one frame, a quarter each: picture top left, depth top right, normals bottom left, mask bottom right."
+    },
+    {
+      "key": "camera.passes.depthRange",
+      "value": "Depth Range"
+    },
+    {
+      "key": "camera.passes.depthRange.description",
+      "value": "How far away the depth pass reaches black. A shorter range spends more of the grey scale on what is close to the camera."
+    },
+    {
+      "key": "camera.passes.separate",
+      "value": "Separate Outputs"
+    },
+    {
+      "key": "camera.passes.separate.tooltip",
+      "value": "Also send each chosen pass on its own: its own Spout, Syphon or virtual camera feed (or web stream) beside the live output, and its own file beside every photo."
+    },
+    {
+      "key": "camera.passes.depth",
+      "value": "Depth"
+    },
+    {
+      "key": "camera.passes.depth.description",
+      "value": "Send the depth pass on its own."
+    },
+    {
+      "key": "camera.passes.normals",
+      "value": "Normals"
+    },
+    {
+      "key": "camera.passes.normals.description",
+      "value": "Send the normals pass on its own."
+    },
+    {
+      "key": "camera.passes.mask",
+      "value": "Mask"
+    },
+    {
+      "key": "camera.passes.mask.description",
+      "value": "Send the player and prop mask on its own."
+    },
+    {
+      "key": "camera.passes.motion",
+      "value": "Motion"
+    },
+    {
+      "key": "camera.passes.motion.description",
+      "value": "Send the motion pass on its own. It adds a motion vector pass to the camera's render."
+    },
+    {
+      "key": "camera.passes.status.none",
+      "value": "Choose at least one pass to send separately."
+    },
+    {
+      "key": "camera.passes.status.photos",
+      "value": "Every photo also saves {0} as separate files. Switch on Live Output to stream them as well."
+    },
+    {
+      "key": "camera.passes.status.line",
+      "value": "{0}: {1}"
+    },
+    {
+      "key": "camera.passes.status.failed",
+      "value": "{0} could not start: {1}"
+    },
+    {
+      "key": "camera.passes.status.starting",
+      "value": "{0}: starting"
+    },
+    {
+      "key": "camera.passes.unavailable",
+      "value": "Render passes are unavailable: their shaders are missing from this build."
+    },
+    {
       "key": "camera.streamResolution",
       "value": "Stream Resolution"
     },

@@ -923,6 +923,14 @@ public partial class BasisHandHeldCameraUI
             directToScreenFit = HHC != null ? (int)HHC.DirectToScreenFit : baseline.directToScreenFit,
             directToScreenAlignX = HHC != null ? HHC.DirectToScreenAlignment.x : baseline.directToScreenAlignX,
             directToScreenAlignY = HHC != null ? HHC.DirectToScreenAlignment.y : baseline.directToScreenAlignY,
+            directToScreenDisplay = HHC != null ? HHC.DirectToScreenDisplay : baseline.directToScreenDisplay,
+            passOutput = HHC != null ? (int)HHC.PassOutput : baseline.passOutput,
+            passDepthRange = HHC != null ? HHC.PassDepthRange : baseline.passDepthRange,
+            separatePasses = HHC != null ? HHC.SeparatePasses : baseline.separatePasses,
+            separateDepth = HHC != null ? HHC.IsSeparatePass(BasisCameraPass.Depth) : baseline.separateDepth,
+            separateNormals = HHC != null ? HHC.IsSeparatePass(BasisCameraPass.Normals) : baseline.separateNormals,
+            separateMask = HHC != null ? HHC.IsSeparatePass(BasisCameraPass.Mask) : baseline.separateMask,
+            separateMotion = HHC != null ? HHC.IsSeparatePass(BasisCameraPass.Motion) : baseline.separateMotion,
             backgroundMode = HHC != null ? (int)HHC.backgroundMode : 0,
             backgroundCustomColor = HHC != null ? HHC.backgroundCustomColor : BasisCameraBackgrounds.ChromaGreen,
             backgroundKeepsWorld = HHC != null && HHC.backgroundKeepsWorld,
@@ -1466,7 +1474,12 @@ public partial class BasisHandHeldCameraUI
         // The fit and alignment first, so the window is taken over already placed.
         HHC.SetDirectToScreenFit(BasisCameraDirectToScreen.SanitizeFit(settings.directToScreenFit));
         HHC.SetDirectToScreenAlignment(settings.directToScreenAlignX, settings.directToScreenAlignY);
+        HHC.SetDirectToScreenDisplay(settings.directToScreenDisplay);
         HHC.SetDirectToScreen(settings.directToScreen);
+        HHC.SetPassDepthRange(settings.passDepthRange);
+        HHC.SetSeparatePassSet(BasisCameraPasses.SetOf(settings.separateDepth, settings.separateNormals, settings.separateMask, settings.separateMotion));
+        HHC.SetSeparatePasses(settings.separatePasses);
+        HHC.SetPassOutput(BasisCameraPasses.SanitizeOutput(settings.passOutput));
 
 #if Basis_VOLUMETRIC_SUPPORTED
         if (HHC.MetaData.VolumetricFogVolume != null)

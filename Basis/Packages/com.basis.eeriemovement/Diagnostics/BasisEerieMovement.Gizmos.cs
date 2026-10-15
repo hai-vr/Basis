@@ -376,7 +376,7 @@ namespace Basis.IK
                 {
                     continue;
                 }
-                Vector3 position = slotPositions[i];
+                Vector3 position = poseStream.GetPosition(SlotHandle(i));
                 gizmos.Point(stage, position, color);
                 gizmos.Axes(stage, position, slotRotations[i] * slotOffsets[i], gizmos.AxisLength * 0.75f);
             }

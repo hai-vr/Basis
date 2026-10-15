@@ -126,6 +126,7 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
         BasisCullingCameraRegistry.Unregister(captureCamera);
         BasisMirrorViewerRegistry.Unregister(captureCamera);
         ShutdownDirectToScreen();
+        ReleaseRenderPasses();
         BasisCameraRenderTargets.Release(ref renderTexture);
         ReleaseFocusPeaking();
         ReleaseViewfinderGrid();
@@ -188,11 +189,13 @@ public partial class BasisHandHeldCamera : BasisHandHeldCameraInteractable
     {
         TickDirectToScreen();
         UpdateRenderGate();
+        TickRenderPasses();
         TickBody();
         TickAutoBrightness();
         TickFocusPeaking();
         TickViewfinderGrid();
         TickVideoOutput();
+        TickPassOutputs();
         TickGifRecorder();
         TickVideoRecorder();
         TickPhotogrammetry();

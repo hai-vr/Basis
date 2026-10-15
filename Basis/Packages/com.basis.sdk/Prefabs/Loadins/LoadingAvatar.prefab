@@ -147,7 +147,112 @@ MonoBehaviour:
   EyeMaxLookAngleEnabled: 0
   EyeMaxLookAngle: 25
   FaceVisemeMovement: ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffi
-  FaceVisemeProfiles: []
+  FaceVisemeProfiles:
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
+  - Gain: 1
+    Threshold: 0
+    OutMin: 0
+    OutMax: 100
+    AttackSeconds: 0
+    ReleaseSeconds: 0
+    Binary: 0
   FaceVisemeDrive:
     Mode: 0
     WinnerMargin: 0.05
@@ -157,7 +262,7 @@ MonoBehaviour:
     BackendSmoothing: 70
   BlinkViseme: ffffffffi
   laughterBlendTarget: -1
-  AnimatorHumanScale: {x: 1, y: 1, z: 1}
+  AnimatorHumanScale: {x: 0.9921644, y: 0.9921644, z: 0.9921644}
   Renders:
   - {fileID: 8839165641088738499}
   TransformStorage:

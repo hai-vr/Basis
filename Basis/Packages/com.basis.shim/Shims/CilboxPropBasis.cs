@@ -180,6 +180,8 @@ namespace Cilbox
 			{ typeof(Basis.Shims.BasisVixxyShim), new HashSet<string>() },
 			{ typeof(Basis.Shims.BasisDesktopInputShim), new HashSet<string>() },
 			{ typeof(Basis.Shims.BasisControllerInputShim), new HashSet<string>() },
+			// Props may ask whether the local player sits; the seat itself is a world object.
+			{ typeof(Basis.Shims.BasisSeatShim), new HashSet<string>{ $"get_{nameof(Basis.Shims.BasisSeatShim.IsSeated)}" } },
 			// Jiggle grab/touch events, so a prop with jiggle can answer being handled the same way
 			// an avatar or a world object can.
 			{ typeof(Basis.Shims.BasisJiggleEventShim), new HashSet<string>{

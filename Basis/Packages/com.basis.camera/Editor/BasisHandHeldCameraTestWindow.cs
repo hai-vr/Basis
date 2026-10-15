@@ -328,6 +328,9 @@ namespace Basis.HandHeldCamera.Editor
                 bool enabled = EditorGUILayout.Toggle(BasisEditorLocalization.Get("editor.common.enabled"), camera.DirectToScreen);
                 if (enabled != camera.DirectToScreen) camera.SetDirectToScreen(enabled);
 
+                int display = EditorGUILayout.IntSlider(BasisLocalization.Get("camera.directToScreen.display"), camera.DirectToScreenDisplay + 1, 1, BasisCameraDirectToScreen.MaxDisplays) - 1;
+                if (display != camera.DirectToScreenDisplay) camera.SetDirectToScreenDisplay(display);
+
                 BasisCameraDirectToScreenFit fit = (BasisCameraDirectToScreenFit)EditorGUILayout.Popup(BasisEditorLocalization.Get("editor.camera.testWindow.fit"), (int)camera.DirectToScreenFit, FitOptions);
                 if (fit != camera.DirectToScreenFit) camera.SetDirectToScreenFit(fit);
                 using (new EditorGUI.DisabledScope(fit != BasisCameraDirectToScreenFit.Fit && fit != BasisCameraDirectToScreenFit.Fill))
@@ -344,7 +347,7 @@ namespace Basis.HandHeldCamera.Editor
 
                 BasisCameraDirectToScreenState state = camera.DirectToScreenState;
                 bool settled = state == BasisCameraDirectToScreenState.Off || state == BasisCameraDirectToScreenState.Presenting;
-                Status(BasisEditorLocalization.Get("editor.camera.testWindow.state", state), settled, DescribeState(state));
+                Status(BasisEditorLocalization.Get("editor.camera.testWindow.state", state), settled, DescribeState(state, camera.DirectToScreenDisplay));
 
                 BasisCameraDirectToScreenOutput output = BasisCameraDirectToScreenOutput.Presenting;
                 if (camera.IsDirectToScreenPresenting && output != null)
@@ -429,7 +432,7 @@ namespace Basis.HandHeldCamera.Editor
             EditorGUILayout.LabelField(BasisEditorLocalization.Get("editor.camera.testWindow.fit"), BasisEditorLocalization.Get("editor.camera.testWindow.fitInfo", last.Fit, last.ScaleBias.x, last.ScaleBias.y, last.ScaleBias.z, last.ScaleBias.w));
         }
 
-        private static string DescribeState(BasisCameraDirectToScreenState state)
+        private static string DescribeState(BasisCameraDirectToScreenState state, int display)
         {
             switch (state)
             {
@@ -441,6 +444,8 @@ namespace Basis.HandHeldCamera.Editor
                     return BasisEditorLocalization.Get("editor.camera.testWindow.stateHelpNoOutputSocket");
                 case BasisCameraDirectToScreenState.Unsupported:
                     return BasisEditorLocalization.Get("editor.camera.testWindow.stateHelpUnsupported");
+                case BasisCameraDirectToScreenState.DisplayNotConnected:
+                    return BasisLocalization.Get("camera.directToScreen.displayNotConnected", display + 1);
                 default:
                     return BasisEditorLocalization.Get("editor.camera.testWindow.stateHelpOff");
             }

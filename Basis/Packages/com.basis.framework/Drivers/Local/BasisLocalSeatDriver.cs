@@ -17,6 +17,9 @@ namespace Basis.Scripts.Drivers
         private BasisSeat _seat;
         public bool IsSeated => _seat != null;
 
+        /// <summary>The seat the local player is in, or null. A static read so scripts can poll it every frame.</summary>
+        public static BasisSeat ActiveSeat { get; private set; }
+
         public void Initialize(BasisLocalPlayer localPlayer) => LocalPlayer = localPlayer;
 
         // Player-specific pose values calculated when the player sits in a seat.
@@ -90,6 +93,7 @@ namespace Basis.Scripts.Drivers
                 Stand();
 
             _seat = seat;
+            ActiveSeat = seat;
             _seat.ResetOccupantYaw();
             seatedSnapTurnLatched = false;
 
@@ -176,6 +180,7 @@ namespace Basis.Scripts.Drivers
 
         public void Stand()
         {
+            ActiveSeat = null;
             if (hasEvent)
             {
                 BasisLocalPlayer.OnPlayersHeightChangedNextFrame -= OnPlayersHeightChanged;
