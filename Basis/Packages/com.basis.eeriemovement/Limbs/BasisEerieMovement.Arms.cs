@@ -119,6 +119,7 @@ namespace Basis.IK
             input.RestElbow = elbow;
             input.RestHand = hand;
             input.RestHandRotation = restTipRot;
+            input.RestMidRotation = restMidRot;
             input.TargetPosition = isLeft ? targetPositionLeftHand : targetPositionRightHand;
             input.TargetRotation = (isLeft ? targetRotationLeftHand : targetRotationRightHand) * (isLeft ? offsetRotationLeftHand : offsetRotationRightHand);
             input.HasHead = plan.hasHead;

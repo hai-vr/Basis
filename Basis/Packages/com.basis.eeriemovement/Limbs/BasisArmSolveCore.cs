@@ -10,6 +10,7 @@ namespace Basis.IK
         public const float MinReachFraction = 0.05f, MinReachDirectionFraction = 0.1f,ModelWeight = 0.85f, TeleportFraction = 0.6f;
         public const float WristKeepFrac = 0.15f, WristKeepMaxDeg = 15f, ForearmRollMaxDeg = 120f, WrapFadeStartDeg = 155f, WrapFadeEndDeg = 178f;
         public const float HandTiltHintPush = 0.5f, BehindHintStart = 0.05f, BehindHintEnd = 0.6f, BehindHintInward = 0.8f;
+        public const float TrackerHintStraightStart = 0.02f, TrackerHintStraightEnd = 0.07f; // Tracked elbow offset from the shoulder/hand line (fraction of arm length) where its position stops/starts being trusted
         const float epsilon = 1e-5f, sqrEpsilon = 1e-8f;
         public static void Frame(Vector3 axis, Vector3 torsoUp, Vector3 torsoForward, Vector3 torsoOut, out Vector3 ex, out Vector3 ey)
         {
@@ -141,6 +142,18 @@ namespace Basis.IK
             // Project the hint onto the elbow circle to get the swivel angle.
             Vector3 hintDir = worldHint - center;
             hintDir -= axis * Vector3.Dot(hintDir, axis);
+            float side = i.IsLeft ? 1f : -1f;
+
+            // Near full extension a tracked elbow sits on the shoulder/hand line, so the direction of its offset is mostly noise and the arm twists around.
+            // Fade toward the bend direction implied by the elbow tracker's rotation, which stays meaningful even when the arm is perfectly straight.
+            if (i.HasTrackerHint && i.HasHintRotation && TrackerBendDir(i, axis, side, out Vector3 rotDir))
+            {
+                float hintOffset = hintDir.magnitude / chain; // How far the tracked elbow is off the shoulder/hand line
+                float straightBlend = 1f -Smoothstep(TrackerHintStraightStart, TrackerHintStraightEnd, hintOffset);
+                Vector3 posDir = hintDir.sqrMagnitude > sqrEpsilon ? hintDir.normalized : rotDir;
+                Vector3 mixed = posDir * (1f - straightBlend) + rotDir * straightBlend;
+                hintDir = mixed.sqrMagnitude > sqrEpsilon ? mixed : rotDir;
+            }
             float targetDeg = hintDir.sqrMagnitude > sqrEpsilon ? DirToDeg(hintDir.normalized, ex, ey) : BodyPrior(i, axis, ex, ey);
 
             // Smooth the swivel toward the target or teleport if needed
@@ -161,7 +174,6 @@ namespace Basis.IK
                 swivelDeg = Wrap(state.SwivelDeg + step);
             }
 
-            float side = i.IsLeft ? 1f : -1f;
             Vector3 finalDir = DegToDir(swivelDeg, ex, ey), finalElbow = center + finalDir * radius;
             Joints(i, finalElbow, finalDir, axis, side, palm, handFwd, out r.HumeralDeg, out r.PronationDeg, out r.WristFlexDeg, out r.WristDevDeg);
 
@@ -201,6 +213,29 @@ namespace Basis.IK
             float along = Vector3.Dot(handFwd, w);
             flexDeg = Mathf.Atan2(Vector3.Dot(handFwd, pN), along) * Mathf.Rad2Deg;
             devDeg = Mathf.Atan2(Vector3.Dot(handFwd, thumb), along) * Mathf.Rad2Deg;
+        }
+        // The elbow hinge axis in the rest pose; Pose maps this onto the solved hinge.
+        static Vector3 RestHinge(in BasisArmSolveInput i, Vector3 u0)
+        {
+            Vector3 h0 = Swing(i.TorsoOut, u0, i.TorsoUp);
+            h0 -= u0 * Vector3.Dot(h0, u0);
+            if (h0.sqrMagnitude < sqrEpsilon) h0 = i.TorsoUp;
+            return h0.normalized;
+        }
+        // Elbow direction (perpendicular to the shoulder/hand axis) implied by the elbow tracker's rotation.
+        // HintRotation is the tracker mapped onto the lower arm bone, so running Pose's rest hinge through it gives the live hinge, and Hinge() inverted gives the bend.
+        static bool TrackerBendDir(in BasisArmSolveInput i, Vector3 axis, float side, out Vector3 dir)
+        {
+            Vector3 hinge = i.HintRotation * (Quaternion.Inverse(i.RestMidRotation) * RestHinge(i, (i.RestElbow - i.Shoulder).normalized));
+            dir = Vector3.Cross(axis, hinge) * side;
+            dir -= axis * Vector3.Dot(dir, axis);
+            float dirSqr = dir.sqrMagnitude;
+            if (dirSqr < sqrEpsilon)
+            {
+                return false;
+            }
+            dir /= Mathf.Sqrt(dirSqr);
+            return true;
         }
         static float RestPrior(in BasisArmSolveInput i, Vector3 axis, Vector3 ex, Vector3 ey)
         {
@@ -247,10 +282,7 @@ namespace Basis.IK
         public static void Pose(in BasisArmSolveInput i, in BasisArmSolveResult r, Quaternion restUpperRot, Quaternion restLowerRot, out Quaternion upperRot, out Quaternion lowerRot, out float forearmRollDeg)
         {
             Vector3 u0 = (i.RestElbow - i.Shoulder).normalized, w0 = (i.RestHand - i.RestElbow).normalized, u = (r.Elbow - i.Shoulder).normalized, w = (r.Hand - r.Elbow).normalized;
-            Vector3 h0 = Swing(i.TorsoOut, u0, i.TorsoUp);
-            h0 -= u0 * Vector3.Dot(h0, u0);
-            if (h0.sqrMagnitude < sqrEpsilon) h0 = i.TorsoUp;
-            h0.Normalize();
+            Vector3 h0 = RestHinge(i, u0);
             upperRot = Align(restUpperRot, u0, u, h0, r.Hinge);
             lowerRot = Align(restLowerRot, w0, w, h0, r.Hinge);
             forearmRollDeg = ForearmRoll(i, r, lowerRot, restLowerRot);
