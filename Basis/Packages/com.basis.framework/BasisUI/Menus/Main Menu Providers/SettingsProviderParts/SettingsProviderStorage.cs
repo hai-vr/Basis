@@ -75,6 +75,15 @@ public static class SettingsProviderStorage
 
         SettingsProviderTrustedUrls.Populate(container, TabKey, descriptor);
 
+        // ---- Backup & Restore ----
+        // Lazy, with lazy Create/Restore halves inside: a collapsed section costs nothing,
+        // and the archive list is scanned (on a worker thread) only when Restore opens, so
+        // reopening it picks up files written since.
+        PanelSectionToggleHelpers.CreateLazyBoxedSection(container,
+            BasisLocalization.Get("settings.developer.backup.title"),
+            () => SettingsProviderBackup.BuildSection(container, descriptor),
+            false, _ => descriptor.ForceRebuild());
+
         if (BasisSettingsDefaults.ShowDeveloperTab.RawValue)
         {
             PanelSectionToggle netStatsSection = null;

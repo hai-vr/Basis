@@ -258,7 +258,7 @@ namespace Basis.BasisUI
                 }
                 if (box != null)
                 {
-                    PanelElementDescriptor.RebuildLayoutChain(box.rectTransform, container);
+                    PanelElementDescriptor.RebuildLayoutChain(box.ContentParent, container);
                 }
             });
         }

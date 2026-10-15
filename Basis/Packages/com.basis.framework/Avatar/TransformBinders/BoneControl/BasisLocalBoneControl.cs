@@ -44,6 +44,8 @@ namespace Basis.Scripts.TransformBinders.BoneControl
 
         public List<string> DevicesWithRoles = new List<string>();
 
+        public bool TrackerFollowsBody;
+
         public Action<bool> OnHasRigChanged;
 
         [SerializeField] private BasisHasRigLayer hasRigLayer = BasisHasRigLayer.HasNoRigLayer;

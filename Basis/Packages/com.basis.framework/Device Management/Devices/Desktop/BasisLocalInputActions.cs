@@ -481,7 +481,7 @@ namespace Basis.Scripts.Device_Management.Devices.Desktop
         {
             if (BasisInputModuleHandler.Instance == null || BasisInputModuleHandler.Instance.IsTyping() == false)
             {
-                SettingsProvider.OpenToTab("settings.tab.chat");
+                SettingsProvider.OpenToTab("settings.tab.chatui");
             }
         }
 

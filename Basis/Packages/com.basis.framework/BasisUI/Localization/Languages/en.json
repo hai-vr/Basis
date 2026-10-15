@@ -4347,10 +4347,6 @@
       "value": "Connected Trackers"
     },
     {
-      "key": "trackerLinking.connectorTrackers",
-      "value": "Show Connector Trackers"
-    },
-    {
       "key": "trackerLinking.connectorTrackers.description",
       "value": "Show the per-tracker linking and role-override list. Hide it once your trackers are paired and roled — the tab stays compact for routine use."
     },
@@ -4361,10 +4357,6 @@
     {
       "key": "trackerLinking.advanced.description",
       "value": "Show the fusion tuning sliders. Defaults work for typical hip-belt setups; only flip this on if you understand the tradeoffs."
-    },
-    {
-      "key": "trackerLinking.tuning.title",
-      "value": "Fusion Tuning"
     },
     {
       "key": "trackerLinking.tuning.description",
@@ -7019,6 +7011,10 @@
       "value": "Chat"
     },
     {
+      "key": "settings.tab.chatui",
+      "value": "Chat & UI"
+    },
+    {
       "key": "settings.tab.bodytracking",
       "value": "Body Tracking"
     },
@@ -7843,6 +7839,18 @@
       "value": "Quality"
     },
     {
+      "key": "settings.graphics.group.display",
+      "value": "Display"
+    },
+    {
+      "key": "settings.graphics.group.foveated",
+      "value": "Foveated Rendering"
+    },
+    {
+      "key": "settings.graphics.group.avatars",
+      "value": "Avatars"
+    },
+    {
       "key": "settings.graphics.quality.description",
       "value": "Overall render quality and post-processing."
     },
@@ -8128,7 +8136,7 @@
     },
     {
       "key": "settings.graphics.memoryAllocation",
-      "value": "Memory Allocation"
+      "value": "Texture Memory Budget"
     },
     {
       "key": "settings.graphics.resolution",
@@ -8140,7 +8148,7 @@
     },
     {
       "key": "settings.graphics.overrides.title",
-      "value": "Overrides"
+      "value": "Effect Overrides"
     },
     {
       "key": "settings.graphics.mirrorQuality.title",
@@ -9747,10 +9755,6 @@
       "value": "Fine-tune rendering, LOD, and performance options."
     },
     {
-      "key": "settings.graphics.advanced.showAdvanced",
-      "value": "Advanced Settings"
-    },
-    {
       "key": "settings.graphics.renderScale",
       "value": "Render Scale"
     },
@@ -9760,7 +9764,7 @@
     },
     {
       "key": "settings.graphics.foveated",
-      "value": "Foveated Percentage"
+      "value": "Foveation Strength"
     },
     {
       "key": "settings.graphics.fov",
@@ -9776,7 +9780,7 @@
     },
     {
       "key": "settings.graphics.localHeadBlendShapes",
-      "value": "Head Gets BlendShapes"
+      "value": "First-Person Facial Expressions"
     },
     {
       "key": "settings.graphics.localHeadBlendShapes.description",
@@ -11947,10 +11951,6 @@
       "value": "Unavailable — Variable Rate Shading requires DirectX 12. Your current graphics API does not support it."
     },
     {
-      "key": "settings.graphics.vrs.title",
-      "value": "Variable Rate Shading"
-    },
-    {
       "key": "settings.graphics.vrs",
       "value": "Gaze Foveated Shading (VR)"
     },
@@ -11987,8 +11987,16 @@
       "value": "Gizmos"
     },
     {
-      "key": "trackerLinking.trackingCalibration",
-      "value": "Tracking & Calibration"
+      "key": "trackerLinking.eyeFace",
+      "value": "Eye & Face"
+    },
+    {
+      "key": "trackerLinking.group.trackersDevices",
+      "value": "Trackers & Devices"
+    },
+    {
+      "key": "trackerLinking.group.calibrationDebug",
+      "value": "Calibration Debug"
     },
     {
       "key": "settings.developer.group.rendering",
@@ -12184,7 +12192,7 @@
     },
     {
       "key": "settings.eyeFoveation.prompt.body",
-      "value": "Your headset reports eye tracking. Enable gaze foveation (Variable Rate Shading) to render in full detail where you look and save GPU elsewhere? You can change this anytime in Settings → Tracker Settings → Tracking & Calibration."
+      "value": "Your headset reports eye tracking. Enable gaze foveation (Variable Rate Shading) to render in full detail where you look and save GPU elsewhere? You can change this anytime in Settings → Tracker Settings → Eye & Face."
     },
     {
       "key": "settings.eyeFoveation.prompt.enable",
@@ -12595,6 +12603,14 @@
       "value": "Drive your avatar's face, eyes, fingers and hands from a webcam (experimental)."
     },
     {
+      "key": "settings.mediapipe.section.headFace",
+      "value": "Head & Face"
+    },
+    {
+      "key": "settings.mediapipe.section.armsBody",
+      "value": "Arms & Body"
+    },
+    {
       "key": "settings.mediapipe.enableWebcamTracking",
       "value": "Enable Webcam Tracking"
     },
@@ -12627,11 +12643,11 @@
       "value": "Requested webcam frames per second."
     },
     {
-      "key": "settings.mediapipe.armElbowPoleExperimental",
-      "value": "Arm Elbow Pole (experimental)"
+      "key": "settings.mediapipe.armElbowPole",
+      "value": "Arm Elbow Pole"
     },
     {
-      "key": "settings.mediapipe.armElbowPoleExperimental.description",
+      "key": "settings.mediapipe.armElbowPole.description",
       "value": "Steer the elbow with a pose-driven pole. May interact with full-body tracker calibration; leave off unless arms are tracking well first."
     },
     {
@@ -12763,40 +12779,12 @@
       "value": "Fix the head tilt (ear-to-shoulder) direction."
     },
     {
-      "key": "settings.mediapipe.smoothing.description",
-      "value": "Higher = smoother but more latency."
-    },
-    {
-      "key": "settings.mediapipe.headSmoothing",
-      "value": "Head Smoothing"
-    },
-    {
-      "key": "settings.mediapipe.faceSmoothing",
-      "value": "Face Smoothing"
-    },
-    {
-      "key": "settings.mediapipe.handSmoothing",
-      "value": "Hand Smoothing"
-    },
-    {
-      "key": "settings.mediapipe.fingerSmoothing",
-      "value": "Finger Smoothing"
-    },
-    {
       "key": "settings.mediapipe.chestMotion",
       "value": "Chest Motion"
     },
     {
       "key": "settings.mediapipe.chestMotion.description",
       "value": "How much your torso lean, twist and sway carries into the avatar."
-    },
-    {
-      "key": "settings.mediapipe.elbowRestBias",
-      "value": "Elbow Rest Bias"
-    },
-    {
-      "key": "settings.mediapipe.elbowRestBias.description",
-      "value": "Pulls the elbow toward hanging naturally. The camera guesses elbow depth, so a little bias usually looks better."
     },
     {
       "key": "settings.mediapipe.armHeadAnchor",
@@ -20689,11 +20677,11 @@
       "value": "Your avatar's head shifts to follow your real head movement."
     },
     {
-      "key": "settings.mediapipe.armTrackingExperimental",
-      "value": "Arm Tracking (experimental)"
+      "key": "settings.mediapipe.armTracking",
+      "value": "Arm Tracking"
     },
     {
-      "key": "settings.mediapipe.armTrackingExperimental.description",
+      "key": "settings.mediapipe.armTracking.description",
       "value": "Move your avatar's arms to match your real arms, retargeted from the pose skeleton (turns on the pose model; extra CPU)."
     },
     {
@@ -20711,14 +20699,6 @@
     {
       "key": "settings.mediapipe.mirrorCamera.description",
       "value": "Flip the camera horizontally (selfie view)."
-    },
-    {
-      "key": "settings.mediapipe.swapHands",
-      "value": "Swap Hands"
-    },
-    {
-      "key": "settings.mediapipe.swapHands.description",
-      "value": "Fix left/right hands if they are reversed."
     },
     {
       "key": "settings.mediapipe.diagnostics.notRunning",
