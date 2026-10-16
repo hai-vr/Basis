@@ -550,6 +550,10 @@ namespace Cilbox
 				typeof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer).GetProperty(nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.displayName)).GetGetMethod().Name,
 				"get_playerId", nameof(Basis.Scripts.Networking.NetworkedAvatar.BasisNetworkPlayer.GetAllPlayers),
 				} },
+			{ typeof(Basis.Scripts.Networking.BasisNetworkConnection), new HashSet<string> {
+				$"get_{nameof(Basis.Scripts.Networking.BasisNetworkConnection.LocalPlayerIsConnected)}",
+				nameof(Basis.Scripts.Networking.BasisNetworkConnection.TryGetLocalPlayerID),
+				} },
 			{ typeof(Basis.SafeUtil), new HashSet<string>{
 				".ctor",
 				nameof(Basis.SafeUtil.GetCurrentLanguage),
@@ -831,6 +835,11 @@ namespace Cilbox
 			"Basis.BasisUI.BasisExternalLinks",
 			"Basis.BasisUI.BasisWebRequests",
 			"Basis.Scripts.BasisSdk.Interactions.BasisUserActivation",
+			"BasisNetworkLifeCycle",
+			"Basis.Scripts.Networking.BasisNetworkManagement",
+			"Basis.Scripts.Networking.BasisConnectionService",
+			"Basis.Scripts.Networking.BasisServerRequests",
+			"Basis.Scripts.Networking.BasisDeepLinkProvider",
 		};
 
 		public override bool CheckTypeAllowed(Type t)
@@ -870,6 +879,7 @@ namespace Cilbox
 		{
 			if (!CheckTypeAllowed(sType)) return false;
 			string fullField = sType + "." + sFieldName;
+			if (sType == typeof(Basis.Scripts.Networking.BasisNetworkConnection).FullName) return Beyond(CilboxItems.FieldPrefix + fullField, true);
 			if (commonWhiteListFields.Contains(fullField)) return true;
 			if (ExtraWhiteListFields.Contains(fullField)) return true;
 			foreach (var allowedField in commonWhiteListFields)
@@ -886,6 +896,7 @@ namespace Cilbox
 		public override bool CheckMethodAllowed(out MethodInfo mi, Type declaringType, string name, SerializedTypeDescriptor[] parametersIn, SerializedTypeDescriptor[] genericArgumentsIn, string fullSignature)
 		{
 			mi = null;
+			CilboxProfiler.Resolving(this);
 
 			if (fullSignature != null && fullSignature.IndexOf('*') >= 0) return Beyond(MethodItem(declaringType, name), true);
 
@@ -939,6 +950,12 @@ namespace Cilbox
 			}
 
 			if (declaringType == typeof(Basis.Shims.BasisHapticsShim) && !CilboxHaptics.IsEntryPoint(name)) return Beyond(MethodItem(declaringType, name), true);
+
+			if (CilboxMenus.Blocks(declaringType, name)) return Beyond(MethodItem(declaringType, name), true);
+
+			if (declaringType == typeof(Basis.Scripts.Networking.BasisNetworkConnection) && !CuratedMethodAllowed(declaringType, name)) return Beyond(MethodItem(declaringType, name), true);
+
+			if (declaringType == typeof(Basis.Shims.BasisConnectionShim) && (this is CilboxAvatarBasis || !CilboxConnection.IsEntryPoint(name))) return Beyond(MethodItem(declaringType, name), true);
 
 			if (CilboxCompute.IsRedirect(declaringType, name))
 			{

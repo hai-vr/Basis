@@ -46,6 +46,9 @@ namespace Cilbox
 			"Basis.Shims.BasisComputeShim",
 			"Basis.Shims.BasisAudioRoutingShim", // Only routes the avatar's own sources, to the Avatars group.
 			"Basis.Shims.BasisStatsShim",
+			"Basis.Shims.BasisMenuShim",
+			"Basis.Shims.BasisMenuPage",
+			"Basis.Shims.BasisMenuItem",
 
 			// HVR Vixxy
 			"HVR.Vixxy.HVRVixxyMenuItem", // Restrictive, see method whitelist.

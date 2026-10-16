@@ -182,6 +182,7 @@ namespace Cilbox
 			{ typeof(Basis.Shims.BasisControllerInputShim), new HashSet<string>() },
 			// Props may ask whether the local player sits; the seat itself is a world object.
 			{ typeof(Basis.Shims.BasisSeatShim), new HashSet<string>{ $"get_{nameof(Basis.Shims.BasisSeatShim.IsSeated)}" } },
+			{ typeof(Basis.Shims.BasisVelocityShim), new HashSet<string>{ $"get_{nameof(Basis.Shims.BasisVelocityShim.Velocity)}" } },
 			// Jiggle grab/touch events, so a prop with jiggle can answer being handled the same way
 			// an avatar or a world object can.
 			{ typeof(Basis.Shims.BasisJiggleEventShim), new HashSet<string>{
@@ -268,13 +269,6 @@ namespace Cilbox
 				"get_queriesHitBackfaces", "get_queriesHitTriggers",
 				"get_sleepThreshold", "get_defaultContactOffset",
 				} },
-			{
-				typeof(Basis.Scripts.Networking.BasisNetworkConnection),
-				new HashSet<string>
-				{
-					"get_LocalPlayerIsConnected",
-				}
-			},
 			{
 				typeof(BasisNetworkContentBase),
 				new HashSet<string>

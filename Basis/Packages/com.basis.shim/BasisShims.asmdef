@@ -17,7 +17,8 @@
         "BasisEditor",
         "HVR.Basis.Comms",
         "BasisExamples",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

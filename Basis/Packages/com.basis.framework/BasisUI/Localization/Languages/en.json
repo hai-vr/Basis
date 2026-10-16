@@ -4387,6 +4387,18 @@
       "value": "Mirror Settings"
     },
     {
+      "key": "menu.content.source.world",
+      "value": "Added by the world: {0}"
+    },
+    {
+      "key": "menu.content.source.prop",
+      "value": "Added by the prop: {0}"
+    },
+    {
+      "key": "menu.content.source.avatar",
+      "value": "Added by your avatar: {0}"
+    },
+    {
       "key": "menu.provider.cameraSettings",
       "value": "Camera Settings"
     },
@@ -12165,6 +12177,106 @@
     {
       "key": "settings.developer.group.packages",
       "value": "Package Tools"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.title",
+      "value": "Cilbox Script Performance"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.description",
+      "value": "Shows which sandboxed scripts take the most time in Update, Awake, OnBeforeRender and every other callback Cilbox runs. ms/frame and Calls average the last second. Each row is that callback's own time; callbacks it triggers get their own rows."
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.enable",
+      "value": "Profile Cilbox Scripts"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.enable.tooltip",
+      "value": "Times every Cilbox script callback while on. Leave it on and load a world to capture Awake and Start. Adds a small cost to each callback."
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.sort",
+      "value": "Sort By"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.sort.tooltip",
+      "value": "Per Frame ranks the last second, Peak the slowest single frame, Total all time since recording started."
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.sort.frame",
+      "value": "Per Frame"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.sort.peak",
+      "value": "Peak"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.sort.total",
+      "value": "Total"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.clear",
+      "value": "Clear"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.clear.tooltip",
+      "value": "Resets the peak and total columns."
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.off",
+      "value": "Turn on Profile Cilbox Scripts to start recording."
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.empty",
+      "value": "No Cilbox script has run since recording started."
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.summary",
+      "value": "{0:0.00} ms per frame across {1} callbacks in {2} sandboxes"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.column.script",
+      "value": "Script"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.column.source",
+      "value": "Source"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.column.frame",
+      "value": "ms/frame"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.column.peak",
+      "value": "Peak ms"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.column.calls",
+      "value": "Calls"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.column.total",
+      "value": "Total ms"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.source.world",
+      "value": "World"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.source.prop",
+      "value": "Prop"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.source.avatar",
+      "value": "Avatar"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.more",
+      "value": "{0} more not shown"
+    },
+    {
+      "key": "settings.developer.cilboxProfiler.graph",
+      "value": "Cilbox time per frame over the last {1:0.0} s, one color per script and grey for everything else. Top line: {0} ms."
     },
     {
       "key": "settings.developer.group.trackingDiagnostics",
@@ -21843,6 +21955,34 @@
     {
       "key": "externalLinks.unnamed",
       "value": "Unnamed"
+    },
+    {
+      "key": "serverRequests.connect.title",
+      "value": "Switch Server?"
+    },
+    {
+      "key": "serverRequests.connect.body",
+      "value": "\"{0}\" ({1}) wants to move you to the server below. You will leave this server. Only accept if you trust where it goes."
+    },
+    {
+      "key": "serverRequests.connect.accept",
+      "value": "Switch Server"
+    },
+    {
+      "key": "serverRequests.disconnect.title",
+      "value": "Leave Server?"
+    },
+    {
+      "key": "serverRequests.disconnect.body",
+      "value": "\"{0}\" ({1}) wants to disconnect you from this server."
+    },
+    {
+      "key": "serverRequests.disconnect.accept",
+      "value": "Leave Server"
+    },
+    {
+      "key": "serverRequests.prompt.server",
+      "value": "Server"
     },
     {
       "key": "settings.general.externalLinkRequests",

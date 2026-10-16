@@ -372,6 +372,7 @@ namespace Basis.BasisUI
 
             AddLazyTab(tabGroup, ModeratorTabKey, () => SettingsProviderModeratorTab.ModeratorTab(tabGroup));
             AddLazyTab(tabGroup, AdminTabKey, () => SettingsProviderAdminTab.AdminTab(tabGroup));
+            AddContentTabs(tabGroup);
             ApplyPermissionGatedTabs();
             BasisNetworkManagement.OnlocalPermissionsChanged -= ApplyPermissionGatedTabs;
             BasisNetworkManagement.OnlocalPermissionsChanged += ApplyPermissionGatedTabs;
@@ -422,6 +423,9 @@ namespace Basis.BasisUI
         /// displayed label and for stable navigation across language changes.
         /// </summary>
         private static void AddLazyTab(PanelTabGroup tabGroup, string tabKey, Func<PanelTabPage> builder)
+            => AddLazyTab(tabGroup, tabKey, BasisLocalization.Get(tabKey), builder);
+
+        private static void AddLazyTab(PanelTabGroup tabGroup, string tabKey, string label, Func<PanelTabPage> builder)
         {
             PanelTabPage placeholder = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
             LazyTab tab = new LazyTab
@@ -434,7 +438,7 @@ namespace Basis.BasisUI
             _lazyTabs.Add(tab);
             _tabKeyToIndex[tabKey] = tab.Index;
 
-            tabGroup.AddTab(BasisLocalization.Get(tabKey), () =>
+            tabGroup.AddTab(label, () =>
             {
                 _lastSelectedTabKey = tabKey;
                 PanelTabPage page = RealizeTab(tabGroup, tab, forSearch: false);
@@ -465,7 +469,7 @@ namespace Basis.BasisUI
 
             tab.Page = realPage;
             tabGroup.Pages[tab.Index] = realPage;
-            PanelScrollMemory.Attach(realPage.Descriptor.ContentParent, tab.Key);
+            if (FindContentTab(tab.Key) == null) PanelScrollMemory.Attach(realPage.Descriptor.ContentParent, tab.Key);
 
             if (tab.Placeholder != null && !tab.Placeholder.IsReleased)
             {

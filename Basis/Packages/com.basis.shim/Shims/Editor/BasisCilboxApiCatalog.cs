@@ -236,6 +236,31 @@ local.ClearLocomotionOverride(""LowGravityZone"");",
             new CilboxApiEntry
             {
                 GroupKey = GroupPlayers,
+                TitleKey = "sdk.cilbox.api.velocity.title",
+                SummaryKey = "sdk.cilbox.api.velocity.summary",
+                Requires = new[] { new CilboxApiRequirement("Basis.Shims.BasisVelocityShim", "SetVelocity") },
+                Example =
+@"using Basis.Shims;
+
+// Worlds only. World space metres per second, on top of the player's own
+// movement. Gravity takes the vertical part; the rest carries through the air
+// and fades out once they are on the ground. Capped at 100 m/s.
+BasisVelocityShim.SetVelocity(transform.up * 12f);
+
+// Adds to what they already have, for boosts and knockback.
+BasisVelocityShim.AddVelocity(transform.forward * 6f);
+
+// How fast they are actually moving. Props can read this too.
+Vector3 velocity = BasisVelocityShim.Velocity;
+
+// A trampoline: keep the run, replace the fall.
+BasisVelocityShim.SetVelocity(new Vector3(velocity.x, 9f, velocity.z));
+
+// Teleporting, sitting down or changing movement mode clears it.",
+            },
+            new CilboxApiEntry
+            {
+                GroupKey = GroupPlayers,
                 TitleKey = "sdk.cilbox.api.playspaceInput.title",
                 SummaryKey = "sdk.cilbox.api.playspaceInput.summary",
                 Requires = new[] { new CilboxApiRequirement("Basis.Shims.BasisPlayspaceInputShim", "SetLocomotion") },
@@ -863,6 +888,64 @@ void Update()
             },
             new CilboxApiEntry
             {
+                GroupKey = GroupInteraction,
+                TitleKey = "sdk.cilbox.api.settingsTab.title",
+                SummaryKey = "sdk.cilbox.api.settingsTab.summary",
+                Requires = new[] { new CilboxApiRequirement("Basis.Shims.BasisMenuShim", "AddSettingsTab"), new CilboxApiRequirement("Basis.Shims.BasisMenuPage", "AddToggle") },
+                Example =
+@"using Basis.Shims;
+
+// Worlds, props the local player spawned, and the local player's own avatar.
+// Null when refused. Removed with the script; keep values with BasisSaveShim.
+// On an avatar, call it from BasisAvatarShim.OnAvatarReady when isOwner is true.
+BasisMenuPage page;
+BasisMenuItem laps;
+
+void Start()
+{
+    page = BasisMenuShim.AddSettingsTab(this, ""Race Track"");
+    if (page == null) return;
+    page.AddHeader(""Race"");
+    page.AddToggle(""Ghost car"", true, OnGhost);
+    laps = page.AddSlider(""Laps"", 1, 10, 3, true, OnLaps);
+    page.AddDropdown(""Weather"", new[] { ""Sun"", ""Rain"" }, 0, OnWeather);
+    page.AddButton(""Reset race"", OnReset);
+}
+
+void OnGhost(bool on) { }
+void OnLaps(float value) { }
+void OnWeather(int index) { }
+void OnReset() { laps.SetValue(3); }",
+            },
+            new CilboxApiEntry
+            {
+                GroupKey = GroupInteraction,
+                TitleKey = "sdk.cilbox.api.menuPanel.title",
+                SummaryKey = "sdk.cilbox.api.menuPanel.summary",
+                Requires = new[] { new CilboxApiRequirement("Basis.Shims.BasisMenuShim", "AddPanel"), new CilboxApiRequirement("Basis.Shims.BasisMenuPage", "AddTab") },
+                Example =
+@"using Basis.Shims;
+
+// One menu button per content; AddTab adds another tab to the same panel.
+// Open() only works within 5 s of the player pressing something in this content.
+BasisMenuPage game;
+BasisMenuItem score;
+
+void Start()
+{
+    game = BasisMenuShim.AddPanel(this, ""Arcade"");
+    if (game == null) return;
+    score = game.AddLabel(""Score: 0"");
+    game.AddButton(""New game"", OnNewGame);
+    BasisMenuPage rules = game.AddTab(""Rules"");
+    rules.AddLabel(""Hit every target before the timer runs out."");
+}
+
+void OnNewGame() { score.SetText(""Score: 0""); }
+public void OnKioskPressed() { game.Open(); }",
+            },
+            new CilboxApiEntry
+            {
                 GroupKey = GroupAudio,
                 TitleKey = "sdk.cilbox.api.audioRouting.title",
                 SummaryKey = "sdk.cilbox.api.audioRouting.summary",
@@ -933,6 +1016,33 @@ void OnWebsiteButtonPressed()
         if (result != BasisExternalLinkResult.Opened) addressLabel.text = ""example.com/community"";
     });
 }",
+            },
+            new CilboxApiEntry
+            {
+                GroupKey = GroupNetworking,
+                TitleKey = "sdk.cilbox.api.connection.title",
+                SummaryKey = "sdk.cilbox.api.connection.summary",
+                Requires = new[] { new CilboxApiRequirement("Basis.Shims.BasisConnectionShim", "RequestConnect") },
+                Example =
+@"using Basis.Shims;
+
+// Call these from the player's own press, grab or click on this world or prop.
+// The player sees the request, and the address when moving, and has to accept.
+void OnPortalPressed()
+{
+    BasisConnectionShim.RequestConnect(this, ""play.example.com"", 4296, null, result =>
+    {
+        if (result == BasisConnectionResult.Declined) sign.text = ""Maybe next time"";
+    });
+}
+
+void OnLeavePressed()
+{
+    BasisConnectionShim.RequestDisconnect(this);
+}
+
+// Reading the connection needs no request: BasisStatsShim.IsConnected, or
+// BasisNetworkConnection.LocalPlayerIsConnected and TryGetLocalPlayerID.",
             },
             new CilboxApiEntry
             {

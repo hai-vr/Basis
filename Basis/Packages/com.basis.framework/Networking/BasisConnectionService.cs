@@ -137,13 +137,7 @@ namespace Basis.Scripts.Networking
                 if (BasisNetworkConnection.LocalPlayerIsConnected)
                 {
                     ReportConnectionProgress(15f, BasisLocalization.Get("menu.servers.status.disconnecting"));
-                    BasisDebug.Log("Disconnecting from current connection", BasisDebug.LogTag.Networking);
-
-                    using CancellationTokenSource cts = new CancellationTokenSource();
-                    Task rebootWait = BasisNetworkConnection.WaitForRebootCompleteAsync(cts.Token);
-                    await BasisNetworkLifeCycle.Destroy();
-                    await rebootWait;
-                    BasisNetworkLifeCycle.Initialize();
+                    await TeardownAsync();
                 }
 
                 if (!BasisNetworkManagement.IsInitialized)
@@ -220,6 +214,30 @@ namespace Basis.Scripts.Networking
             {
                 _connectInProgress = false;
             }
+        }
+
+        public static async Task DisconnectAsync()
+        {
+            if (_connectInProgress || !BasisNetworkConnection.LocalPlayerIsConnected) return;
+            _connectInProgress = true;
+            try
+            {
+                await TeardownAsync();
+            }
+            finally
+            {
+                _connectInProgress = false;
+            }
+        }
+
+        private static async Task TeardownAsync()
+        {
+            BasisDebug.Log("Disconnecting from current connection", BasisDebug.LogTag.Networking);
+            using CancellationTokenSource cts = new CancellationTokenSource();
+            Task rebootWait = BasisNetworkConnection.WaitForRebootCompleteAsync(cts.Token);
+            await BasisNetworkLifeCycle.Destroy();
+            await rebootWait;
+            BasisNetworkLifeCycle.Initialize();
         }
 
         /// <summary>
