@@ -1262,6 +1262,32 @@ BasisSaveShim.Save(this, ""my-game"", ""progress"", bytes);
 
 // 256 KB per slot, 32 slots and 1 MB per store, 8 writes a second.",
             },
+            new CilboxApiEntry
+            {
+                GroupKey = GroupData,
+                TitleKey = "sdk.cilbox.api.saveScopes.title",
+                SummaryKey = "sdk.cilbox.api.saveScopes.summary",
+                Requires = new[] { new CilboxApiRequirement("Basis.Shims.BasisSaveShim", "Save"), new CilboxApiRequirement("Basis.Shims.BasisSaveShim", "LoadReadOnly"), new CilboxApiRequirement("Basis.Shims.BasisSaveScope") },
+                Example =
+@"using Basis.Shims;
+
+// Protected: only this content can read or change it. A null store is the
+// default store that BasisSaveShim.Save(this, slot, bytes) uses.
+BasisSaveShim.Save(this, BasisSaveScope.Protected, ""settings"", ""volume"", bytes);
+byte[] volume = BasisSaveShim.Load(this, BasisSaveScope.Protected, ""settings"", ""volume"");
+
+// ReadOnly: any content can read it, only this content can change it.
+BasisSaveShim.Save(this, BasisSaveScope.ReadOnly, null, ""badge"", bytes);
+
+// Other content reads it with the Content ID you publish.
+byte[] badge = BasisSaveShim.LoadReadOnly(this, partnerContentId, null, ""badge"");
+
+// Shared: any content that names the store can read and change it.
+BasisSaveShim.Save(this, BasisSaveScope.Shared, ""my-game"", ""progress"", bytes);
+
+// Same limits as above. Reading another content's ReadOnly data does not
+// count against this script's 4 stores; it may read 16 of them.",
+            },
             // ---------------------------------------------------------- media
             new CilboxApiEntry
             {

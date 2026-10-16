@@ -5,6 +5,7 @@ using System.Text;
 using Basis.BasisUI;
 using Basis.Scripts.BasisSdk;
 using Basis.Scripts.BasisSdk.Interactions;
+using Basis.Scripts.BasisSdk.Players;
 using Basis.Scripts.Drivers;
 using Basis.Shims;
 using Cilbox;
@@ -75,7 +76,7 @@ namespace Cilbox
 		internal CilboxMenuPanel Panel;
 		internal string Key, Title, Source;
 		internal int Kind, Tab = -1;
-		internal bool Visible = true, Removed, Dirty;
+		internal bool Visible = true, Removed, Dirty, Layout, World;
 		internal double NextBuild;
 		internal PanelTabPage Page;
 		internal readonly List<CilboxMenuItem> Items = new List<CilboxMenuItem>();
@@ -89,7 +90,7 @@ namespace Cilbox
 		internal int Type;
 		internal string Text, Tooltip;
 		internal float Value, Initial, Min, Max;
-		internal bool Whole, Visible = true, Interactable = true;
+		internal bool Whole, Visible = true, Interactable = true, Layout;
 		internal string[] Options;
 		internal Delegate Callback;
 		internal PanelElementDescriptor Element;
@@ -101,14 +102,16 @@ namespace Cilbox
 	{
 		internal const int Header = 0, Label = 1, Button = 2, Toggle = 3, Slider = 4, Dropdown = 5;
 		internal const int KindWorld = 0, KindProp = 1, KindAvatar = 2;
-		internal const int MaxContentSettingsTabs = 8, MaxPanels = 4, MaxSourceLength = 40, MaxLines = 8;
-		internal const float ActivationSeconds = 5f;
-		internal const double RebuildSeconds = 0.25d;
+		internal const int MaxContentSettingsTabs = 8, MaxPanels = 4, MaxSourceLength = 40, MaxLines = 8, MaxAddsPerWindow = 32;
+		internal const float ActivationSeconds = 5f, PressGap = 0.01f;
+		internal const double RebuildSeconds = 0.25d, AddWindowSeconds = 10d;
+		internal const char Joiner = (char)0x2060;
 		internal const string KeyPrefix = "content:";
 		static readonly List<CilboxMenuPage> pages = new List<CilboxMenuPage>();
 		static readonly List<CilboxMenuPanel> panels = new List<CilboxMenuPanel>();
 		static readonly Dictionary<BasisMenuPage, CilboxMenuPage> byPage = new Dictionary<BasisMenuPage, CilboxMenuPage>();
 		static readonly Dictionary<BasisMenuItem, CilboxMenuItem> byItem = new Dictionary<BasisMenuItem, CilboxMenuItem>();
+		static readonly List<(BasisContentBase Content, float At)> opens = new List<(BasisContentBase Content, float At)>();
 		static readonly StringBuilder text = new StringBuilder(64);
 		static bool ticking;
 
@@ -171,7 +174,9 @@ namespace Cilbox
 			CilboxBasisCommon box = Running(self, out CilboxProxy proxy);
 			if (box == null || !Allowed(box, proxy, out BasisContentBase content)) return null;
 			string name = Clean(title, BasisMenuShim.MaxTitleLength, false);
-			if (name.Length == 0 || panels.Count >= MaxPanels || PanelOf(box) != null || PanelTitleTaken(name)) return null;
+			if (name.Length == 0) return null;
+			Purge();
+			if (panels.Count >= MaxPanels || HasPanel(WorldOwned(box, content), content) || PanelTitleTaken(name) || !Spend(box)) return null;
 			CilboxMenuPanel panel = new CilboxMenuPanel { Title = name };
 			CilboxMenuPage page = NewPage(box, proxy, content, name);
 			page.Panel = panel;
@@ -189,7 +194,9 @@ namespace Cilbox
 			if (sibling.Panel == null) return SettingsTab(sibling.Box, sibling.Owner, sibling.Content, title);
 			CilboxMenuPanel panel = sibling.Panel;
 			string name = Clean(title, BasisMenuShim.MaxTitleLength, false);
-			if (name.Length == 0 || panel.Pages.Count >= BasisMenuShim.MaxPanelTabs) return null;
+			if (name.Length == 0) return null;
+			Purge();
+			if (panel.Pages.Count >= BasisMenuShim.MaxPanelTabs || !Spend(sibling.Box)) return null;
 			bool shown = AnyVisible(panel);
 			CilboxMenuPage page = NewPage(sibling.Box, sibling.Owner, sibling.Content, name);
 			page.Panel = panel;
@@ -232,9 +239,10 @@ namespace Cilbox
 		internal static bool IsOpen(BasisMenuPage handle)
 		{
 			CilboxMenuPage page = Find(handle);
-			if (page == null || !page.Visible) return false;
-			return page.Panel == null ? SettingsProvider.IsContentTabShown(page.Key) : CilboxMenuView.IsShown(page);
+			return page != null && page.Visible && Shown(page);
 		}
+
+		static bool Shown(CilboxMenuPage page) => page.Panel == null ? SettingsProvider.IsContentTabShown(page.Key) : CilboxMenuView.IsShown(page);
 
 		internal static float ValueOf(BasisMenuItem handle)
 		{
@@ -250,6 +258,7 @@ namespace Cilbox
 			if (name.Length == 0 || name == page.Title) return;
 			if (page.Panel == null)
 			{
+				Purge();
 				if (SettingsTitleTaken(name, page)) return;
 				page.Title = name;
 				SettingsProvider.RenameContentTab(page.Key, name);
@@ -285,7 +294,9 @@ namespace Cilbox
 		internal static bool Open(BasisMenuPage handle)
 		{
 			CilboxMenuPage page = Mine(handle);
-			if (page == null || !page.Visible || (page.Panel != null && !AnyVisible(page.Panel)) || !BasisUserActivation.Recent(page.Content, ActivationSeconds)) return false;
+			if (page == null || !page.Visible || (page.Panel != null && !AnyVisible(page.Panel))) return false;
+			if (Shown(page)) return true;
+			if (!Pressed(page.Content)) return false;
 			if (page.Panel == null) SettingsProvider.OpenToTab(page.Key);
 			else CilboxMenuView.Show(page);
 			return true;
@@ -301,7 +312,9 @@ namespace Cilbox
 		{
 			CilboxMenuItem item = Mine(handle);
 			if (item == null) return;
-			item.Text = Clean(value, item.Type == Label ? BasisMenuShim.MaxTextLength : BasisMenuShim.MaxTitleLength, item.Type == Label);
+			string clean = Clean(value, item.Type == Label ? BasisMenuShim.MaxTextLength : BasisMenuShim.MaxTitleLength, item.Type == Label);
+			if (clean == item.Text) return;
+			item.Text = clean;
 			CilboxMenuView.ShowText(item);
 		}
 
@@ -381,7 +394,7 @@ namespace Cilbox
 			return false;
 		}
 
-		internal static bool Alive(CilboxMenuPage page) => page.Owner != null && !page.Owner.disabled && page.Box != null && !page.Box.disabled;
+		internal static bool Alive(CilboxMenuPage page) => page.Owner != null && !page.Owner.disabled && page.Box != null && !page.Box.disabled && (ReferenceEquals(page.Content, null) || page.Content != null) && Current(page.Box, page.Content);
 
 		internal static string Clean(string value, int max, bool multiline)
 		{
@@ -396,6 +409,12 @@ namespace Cilbox
 				else if (c == '\n' && multiline && lines < MaxLines) lines++;
 				else if (char.IsControl(c)) c = ' ';
 				else if (c != '\u200D' && CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.Format) continue;
+				else if (c == '\\')
+				{
+					if (text.Length + 2 > max) break;
+					text.Append(c).Append(Joiner);
+					continue;
+				}
 				text.Append(c);
 			}
 			if (text.Length > 0 && char.IsHighSurrogate(text[text.Length - 1])) text.Length--;
@@ -413,6 +432,7 @@ namespace Cilbox
 				{
 					if (!Alive(page)) Remove(page);
 					else if (page.Dirty && now >= page.NextBuild) CilboxMenuView.Rebuild(page, now);
+					else if (page.Layout && now >= page.NextBuild) CilboxMenuView.Relayout(page, now);
 				}
 				catch (Exception e)
 				{
@@ -425,6 +445,7 @@ namespace Cilbox
 		internal static void Remove(CilboxMenuPage page)
 		{
 			if (page.Removed) return;
+			bool shown = page.Panel != null && AnyVisible(page.Panel);
 			page.Removed = true;
 			pages.Remove(page);
 			byPage.Remove(page.Handle);
@@ -433,7 +454,6 @@ namespace Cilbox
 			else
 			{
 				CilboxMenuPanel panel = page.Panel;
-				bool shown = AnyVisible(panel);
 				panel.Pages.Remove(page);
 				if (panel.Pages.Count > 0) CilboxMenuView.Present(page, shown);
 				else
@@ -457,6 +477,23 @@ namespace Cilbox
 			for (int i = pages.Count - 1; i >= 0; i--)
 			{
 				if (i < pages.Count) Remove(pages[i]);
+			}
+			opens.Clear();
+		}
+
+		static void Purge()
+		{
+			for (int i = pages.Count - 1; i >= 0; i--)
+			{
+				if (i >= pages.Count || Alive(pages[i])) continue;
+				try
+				{
+					Remove(pages[i]);
+				}
+				catch (Exception e)
+				{
+					Debug.LogException(e);
+				}
 			}
 		}
 
@@ -489,9 +526,46 @@ namespace Cilbox
 
 		static bool Allowed(CilboxBasisCommon box, CilboxProxy proxy, out BasisContentBase content)
 		{
-			BasisContent.TryResolve(proxy.gameObject, out content);
-			if (box is CilboxAvatarBasis) return content is BasisAvatar && content.SpawnedByLocalPlayer;
-			if (box is CilboxPropBasis) return content != null && (content is BasisScene || content.SpawnedByLocalPlayer);
+			if (!CilboxBasisConsent.TryOwner(box, proxy.gameObject, out content)) content = null;
+			return CilboxBasisConsent.ForLocalPlayer(box, proxy.gameObject) && Current(box, content);
+		}
+
+		static bool Current(CilboxBasisCommon box, BasisContentBase content)
+		{
+			if (!(box is CilboxAvatarBasis)) return true;
+			BasisLocalPlayer local = BasisLocalPlayer.Instance;
+			return content is BasisAvatar avatar && (ReferenceEquals(local, null) || ReferenceEquals(local.BasisAvatar, avatar));
+		}
+
+		static bool WorldOwned(CilboxBasisCommon box, BasisContentBase content) => KindOf(box) == KindWorld || content == null || content is BasisScene;
+
+		static bool Shares(CilboxMenuPage page, bool world, BasisContentBase content) => world ? page.World : !page.World && ReferenceEquals(page.Content, content);
+
+		static bool Spend(CilboxBasisCommon box)
+		{
+			double now = Time.realtimeSinceStartupAsDouble;
+			if (now - box.menuWindowStart >= AddWindowSeconds || now < box.menuWindowStart)
+			{
+				box.menuWindowStart = now;
+				box.menuWindowAdds = 0;
+			}
+			if (box.menuWindowAdds >= MaxAddsPerWindow) return false;
+			box.menuWindowAdds++;
+			return true;
+		}
+
+		static bool Pressed(BasisContentBase content)
+		{
+			if (content == null) return false;
+			float now = Time.realtimeSinceStartup, window = ActivationSeconds;
+			for (int i = opens.Count - 1; i >= 0; i--)
+			{
+				float at = opens[i].At;
+				if (now < at || now - at > ActivationSeconds) opens.RemoveAt(i);
+				else if (ReferenceEquals(opens[i].Content, content)) window = Mathf.Min(window, now - at - PressGap);
+			}
+			if (window <= 0f || !BasisUserActivation.Recent(content, window)) return false;
+			opens.Add((content, now));
 			return true;
 		}
 
@@ -521,7 +595,9 @@ namespace Cilbox
 		static BasisMenuPage SettingsTab(CilboxBasisCommon box, CilboxProxy owner, BasisContentBase content, string title)
 		{
 			string name = Clean(title, BasisMenuShim.MaxTitleLength, false);
-			if (name.Length == 0 || SettingsCount(box) >= BasisMenuShim.MaxSettingsTabs || SettingsCount(null) >= MaxContentSettingsTabs || SettingsTitleTaken(name, null)) return null;
+			if (name.Length == 0) return null;
+			Purge();
+			if (!TabRoom(WorldOwned(box, content), content) || SettingsTitleTaken(name, null) || !Spend(box)) return null;
 			CilboxMenuPage page = NewPage(box, owner, content, name);
 			string key = KeyPrefix + page.Kind.ToString(CultureInfo.InvariantCulture) + ":" + name.ToLowerInvariant();
 			for (int n = 2; SettingsProvider.HasContentTab(key); n++) key = KeyPrefix + page.Kind.ToString(CultureInfo.InvariantCulture) + ":" + name.ToLowerInvariant() + ":" + n.ToString(CultureInfo.InvariantCulture);
@@ -533,7 +609,7 @@ namespace Cilbox
 
 		static CilboxMenuPage NewPage(CilboxBasisCommon box, CilboxProxy owner, BasisContentBase content, string title)
 		{
-			CilboxMenuPage page = new CilboxMenuPage { Handle = new BasisMenuPage(), Box = box, Owner = owner, Content = content, Title = title, Kind = KindOf(box) };
+			CilboxMenuPage page = new CilboxMenuPage { Handle = new BasisMenuPage(), Box = box, Owner = owner, Content = content, Title = title, Kind = KindOf(box), World = WorldOwned(box, content) };
 			page.Source = SourceOf(box, content);
 			pages.Add(page);
 			byPage[page.Handle] = page;
@@ -557,13 +633,13 @@ namespace Cilbox
 			return name.Length > 0 ? name : "?";
 		}
 
-		static CilboxMenuPanel PanelOf(CilboxBasisCommon box)
+		static bool HasPanel(bool world, BasisContentBase content)
 		{
 			for (int i = 0; i < panels.Count; i++)
 			{
-				if (panels[i].Pages.Count > 0 && ReferenceEquals(panels[i].Pages[0].Box, box)) return panels[i];
+				if (panels[i].Pages.Count > 0 && Shares(panels[i].Pages[0], world, content)) return true;
 			}
-			return null;
+			return false;
 		}
 
 		static bool PanelTitleTaken(string name)
@@ -576,14 +652,16 @@ namespace Cilbox
 			return false;
 		}
 
-		static int SettingsCount(CilboxBasisCommon box)
+		static bool TabRoom(bool world, BasisContentBase content)
 		{
-			int count = 0;
+			int mine = 0, all = 0;
 			for (int i = 0; i < pages.Count; i++)
 			{
-				if (pages[i].Panel == null && (box == null || ReferenceEquals(pages[i].Box, box))) count++;
+				if (pages[i].Panel != null) continue;
+				all++;
+				if (Shares(pages[i], world, content)) mine++;
 			}
-			return count;
+			return mine < BasisMenuShim.MaxSettingsTabs && all < MaxContentSettingsTabs;
 		}
 
 		static bool SettingsTitleTaken(string name, CilboxMenuPage except)

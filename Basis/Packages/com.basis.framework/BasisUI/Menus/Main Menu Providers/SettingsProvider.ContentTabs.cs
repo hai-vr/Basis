@@ -48,7 +48,7 @@ namespace Basis.BasisUI
             _contentTabs.Remove(tab);
             if (_searchTabGroup != null)
             {
-                SetTabVisible(_searchTabGroup, key, false);
+                ReleaseContentTab(_searchTabGroup, key);
             }
             _tabKeyToIndex.Remove(key);
             _lazyTabs.RemoveAll(lazy => lazy.Key == key);
@@ -105,29 +105,110 @@ namespace Basis.BasisUI
 
         private static void AddContentLazyTab(PanelTabGroup tabGroup, ContentTab tab)
         {
-            AddLazyTab(tabGroup, tab.Key, tab.Label, () =>
-            {
-                try
-                {
-                    return tab.Builder(tabGroup);
-                }
-                catch (Exception e)
-                {
-                    Debug.LogException(e);
-                    return PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
-                }
-            });
-
-            PanelButton button = ContentTabButton(tab.Key);
+            PanelTabPage placeholder = PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+            int index = FreeContentSlot(tabGroup);
+            PanelButton button = index >= 0 ? tabGroup.SelectionButtons[index] : null;
             if (button == null)
+            {
+                button = PanelButton.CreateNew(PanelButton.ButtonStyles.Tab, tabGroup.TabButtonParent);
+            }
+            if (placeholder == null || button == null)
+            {
+                if (placeholder != null)
+                {
+                    placeholder.ReleaseInstance();
+                }
+                return;
+            }
+
+            if (index >= 0)
+            {
+                tabGroup.Pages[index] = placeholder;
+                tabGroup.SelectionButtons[index] = button;
+            }
+            else
+            {
+                index = tabGroup.Pages.Count;
+                tabGroup.Pages.Add(placeholder);
+                tabGroup.SelectionButtons.Add(button);
+            }
+
+            LazyTab lazy = new LazyTab
+            {
+                Key = tab.Key,
+                Index = index,
+                Builder = () => BuildContentTab(tabGroup, tab),
+                Placeholder = placeholder,
+            };
+            _lazyTabs.Add(lazy);
+            _tabKeyToIndex[tab.Key] = index;
+
+            button.OnClicked = null;
+            button.OnClicked += () =>
+            {
+                _lastSelectedTabKey = tab.Key;
+                BindPageReset(tab.Key, RealizeTab(tabGroup, lazy, forSearch: false));
+            };
+            button.OnClicked += () => tabGroup.SetValue(tabGroup.SelectionButtons.IndexOf(button));
+            button.Descriptor.SetTitle(tab.Label);
+            button.Descriptor.DisableRichText();
+            button.ButtonStyling.ShowIndicator(false);
+            button.transform.SetAsLastSibling();
+            button.gameObject.SetActive(tab.Visible);
+            placeholder.HideImmediate();
+        }
+
+        private static PanelTabPage BuildContentTab(PanelTabGroup tabGroup, ContentTab tab)
+        {
+            try
+            {
+                return tab.Builder(tabGroup);
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+                return PanelTabPage.CreateVertical(tabGroup.Descriptor.ContentParent);
+            }
+        }
+
+        private static int FreeContentSlot(PanelTabGroup tabGroup)
+        {
+            int count = Math.Min(tabGroup.Pages.Count, tabGroup.SelectionButtons.Count);
+            for (int i = 0; i < count; i++)
+            {
+                if (i != tabGroup.Value && ReferenceEquals(tabGroup.Pages[i], null) && !_tabKeyToIndex.ContainsValue(i))
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        private static void ReleaseContentTab(PanelTabGroup tabGroup, string key)
+        {
+            if (!_tabKeyToIndex.TryGetValue(key, out int index) || index < 0 ||
+                index >= tabGroup.Pages.Count || index >= tabGroup.SelectionButtons.Count)
             {
                 return;
             }
 
-            button.Descriptor.DisableRichText();
-            if (!tab.Visible)
+            if (tabGroup.Value == index)
             {
+                NavigateToTab(tabGroup, "settings.tab.general");
+            }
+
+            PanelButton button = tabGroup.SelectionButtons[index];
+            if (button != null)
+            {
+                button.OnClicked = null;
                 button.gameObject.SetActive(false);
+            }
+
+            PanelTabPage page = tabGroup.Pages[index];
+            tabGroup.Pages[index] = null;
+            if (page != null)
+            {
+                page.ReleaseInstance();
             }
         }
 

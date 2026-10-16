@@ -66,7 +66,11 @@ namespace Cilbox
 		internal static void Closed(CilboxMenuPanel panel)
 		{
 			panel.Group = null;
-			for (int i = 0; i < panel.Pages.Count; i++) Forget(panel.Pages[i]);
+			for (int i = 0; i < panel.Pages.Count; i++)
+			{
+				panel.Pages[i].Tab = -1;
+				Forget(panel.Pages[i]);
+			}
 		}
 
 		internal static void Show(CilboxMenuPage page)
@@ -107,6 +111,7 @@ namespace Cilbox
 		internal static void Rebuild(CilboxMenuPage page, double now)
 		{
 			page.Dirty = false;
+			page.Layout = false;
 			page.NextBuild = now + CilboxMenus.RebuildSeconds;
 			PanelTabPage tab = page.Page;
 			if (tab == null || tab.IsReleased)
@@ -123,6 +128,20 @@ namespace Cilbox
 			Build(page);
 		}
 
+		internal static void Relayout(CilboxMenuPage page, double now)
+		{
+			page.Layout = false;
+			page.NextBuild = now + CilboxMenus.RebuildSeconds;
+			RectTransform content = page.Page != null && !page.Page.IsReleased ? page.Page.Descriptor.ContentParent : null;
+			for (int i = 0; i < page.Items.Count; i++)
+			{
+				CilboxMenuItem item = page.Items[i];
+				if (!item.Layout) continue;
+				item.Layout = false;
+				if (content != null && item.Element != null) PanelElementDescriptor.RebuildLayoutChain(item.Element.rectTransform, content);
+			}
+		}
+
 		internal static void Forget(CilboxMenuPage page)
 		{
 			page.Page = null;
@@ -131,6 +150,7 @@ namespace Cilbox
 			{
 				page.Items[i].Element = null;
 				page.Items[i].Control = null;
+				page.Items[i].Layout = false;
 			}
 		}
 
@@ -139,7 +159,7 @@ namespace Cilbox
 			if (item.Element == null) return;
 			if (item.Type == CilboxMenus.Label) item.Element.SetDescription(item.Text);
 			else item.Element.SetTitle(item.Text);
-			Relayout(item.Page);
+			Mark(item);
 		}
 
 		internal static void ShowTooltip(CilboxMenuItem item)
@@ -163,7 +183,7 @@ namespace Cilbox
 		{
 			if (item.Element == null) return;
 			item.Element.gameObject.SetActive(item.Visible);
-			Relayout(item.Page);
+			Mark(item);
 		}
 
 		internal static void ShowInteractable(CilboxMenuItem item)
@@ -176,6 +196,7 @@ namespace Cilbox
 			Forget(page);
 			page.Page = tab;
 			page.Dirty = false;
+			page.Layout = false;
 			PanelElementDescriptor descriptor = tab.Descriptor;
 			descriptor.DisableRichText();
 			descriptor.SetIcon(Icon(page.Kind));
@@ -310,19 +331,70 @@ namespace Cilbox
 		static void AddTab(CilboxMenuPanel panel, CilboxMenuPage page)
 		{
 			PanelTabGroup group = panel.Group;
+			page.Tab = -1;
 			PanelTabPage tab = PanelTabPage.CreateVertical(group.Descriptor.ContentParent);
 			if (tab == null) return;
-			page.Tab = group.Pages.Count;
-			group.AddTab(page.Title, () => Selected(page, tab), tab);
-			PanelButton button = TabButton(page);
-			if (button == null) return;
+			int slot = FreeSlot(panel);
+			PanelButton button = slot >= 0 ? group.SelectionButtons[slot] : null;
+			if (button == null) button = PanelButton.CreateNew(PanelButton.ButtonStyles.Tab, group.TabButtonParent);
+			if (button == null)
+			{
+				tab.ReleaseInstance();
+				return;
+			}
+			if (slot >= 0)
+			{
+				group.Pages[slot] = tab;
+				group.SelectionButtons[slot] = button;
+			}
+			else
+			{
+				slot = group.Pages.Count;
+				group.Pages.Add(tab);
+				group.SelectionButtons.Add(button);
+			}
+			page.Tab = slot;
+			button.OnClicked = null;
+			button.OnClicked += () => Selected(page, tab);
+			button.OnClicked += () => group.SetValue(group.SelectionButtons.IndexOf(button));
+			button.Descriptor.SetTitle(page.Title);
 			button.Descriptor.DisableRichText();
+			button.ButtonStyling.ShowIndicator(slot == group.Value);
+			button.transform.SetAsLastSibling();
 			button.gameObject.SetActive(page.Visible);
+			if (slot != group.Value) tab.HideImmediate();
+		}
+
+		static int FreeSlot(CilboxMenuPanel panel)
+		{
+			PanelTabGroup group = panel.Group;
+			for (int i = 0; i < group.Pages.Count && i < group.SelectionButtons.Count; i++)
+			{
+				if (i == group.Value || !ReferenceEquals(group.Pages[i], null)) continue;
+				bool used = false;
+				for (int p = 0; p < panel.Pages.Count && !used; p++) used = panel.Pages[p].Tab == i;
+				if (!used) return i;
+			}
+			return -1;
+		}
+
+		static void Release(CilboxMenuPage page)
+		{
+			PanelTabGroup group = page.Panel.Group;
+			if (page.Tab < 0 || page.Tab >= group.Pages.Count) return;
+			PanelButton button = TabButton(page);
+			if (button != null) button.OnClicked = null;
+			PanelTabPage tab = group.Pages[page.Tab];
+			group.Pages[page.Tab] = null;
+			page.Tab = -1;
+			if (tab != null) tab.ReleaseInstance();
 		}
 
 		static void Selected(CilboxMenuPage page, PanelTabPage tab)
 		{
-			if (!page.Removed && tab != null && page.Page != tab) Fill(page, tab);
+			if (page.Removed || tab == null || page.Page == tab) return;
+			tab.gameObject.SetActive(true);
+			Fill(page, tab);
 		}
 
 		internal static void Present(CilboxMenuPage page, bool shown)
@@ -338,6 +410,7 @@ namespace Cilbox
 					if (button != null) button.gameObject.SetActive(page.Visible && !page.Removed);
 					CilboxMenuPage next = FirstVisible(panel, null);
 					if ((page.Removed || !page.Visible) && panel.Group.Value == page.Tab && next != null) Select(next);
+					if (page.Removed) Release(page);
 				}
 			}
 			if (visible != shown) RefreshHotbar();
@@ -374,9 +447,10 @@ namespace Cilbox
 			if (BasisMenuBase<BasisMainMenu>.Instance) BasisMenuBase<BasisMainMenu>.Instance.BindProvidersToButtons();
 		}
 
-		static void Relayout(CilboxMenuPage page)
+		static void Mark(CilboxMenuItem item)
 		{
-			if (page.Page != null) page.Page.Descriptor.ForceRebuild();
+			item.Layout = true;
+			item.Page.Layout = true;
 		}
 
 		static void ReleaseControlSlot(PanelElementDescriptor row)

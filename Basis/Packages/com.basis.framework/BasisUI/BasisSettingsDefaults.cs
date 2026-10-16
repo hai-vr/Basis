@@ -4,7 +4,6 @@ using System;
 using Basis.Scripts.Drivers;
 using Basis.Scripts.TransformBinders.BoneControl;
 using Basis.Scripts.Settings;
-using Basis.Streaming;
 
 namespace Basis.BasisUI
 {
@@ -762,22 +761,6 @@ namespace Basis.BasisUI
 
         public static BasisSettingsBinding<bool> ShowVoiceRange = new("showvoicerange", new BasisPlatformDefault<bool>(false));
 
-        /// <summary>
-        /// When on, the client runs a loopback-only HTTP listener on
-        /// 127.0.0.1:<see cref="StreamingMetaPort"/> exposing /stats.json and
-        /// /overlay.html so OBS Browser Source (or any local tool) can pull
-        /// FPS / CCU / ping. Off by default — the listener is only opened
-        /// after the user explicitly enables this.
-        /// </summary>
-        public static BasisSettingsBinding<bool> EnableStreamingMeta = new("enablestreamingmeta", new BasisPlatformDefault<bool>(false));
-
-        /// <summary>
-        /// TCP port used by the streaming meta listener. Stored as a string so
-        /// it can be edited in a single-line numeric text field. Consumers
-        /// should parse it and fall back to 9080 on invalid/out-of-range input.
-        /// </summary>
-        public static BasisSettingsBinding<string> StreamingMetaPort = new("streamingmetaport", new BasisPlatformDefault<string>("9080"));
-
         public static BasisSettingsBinding<bool> DevShowCalibrationDebug = new("devshowcalibrationdebug", new BasisPlatformDefault<bool>(false));
 
         // The calibrate button normally hides itself in desktop unless FBT is on and a real
@@ -1343,19 +1326,7 @@ namespace Basis.BasisUI
 
         //public static BasisSettingsBinding<bool> TrueBinding = new("truebinding", new BasisPlatformDefault<bool>(false));
 
-        // ---------------- CAMERA / PHOTO ----------------
-        public const string PhotoTagging_NoOne = "No One";
-        public const string PhotoTagging_EveryoneInPhoto = "Everyone In Photo";
-        public const string PhotoTagging_JustMe = "Just Me";
-
-        public static BasisSettingsBinding<string> PhotoMetadataTagging = new("photometadatatagging", new BasisPlatformDefault<string>(PhotoTagging_NoOne));
-
-        // Additional photo metadata, all opt-in (off by default).
-        public static BasisSettingsBinding<bool> PhotoEmbedCameraSettings = new("photoembedcamerasettings", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<bool> PhotoEmbedCaptureInfo = new("photoembedcaptureinfo", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<bool> PhotoEmbedPhotographer = new("photoembedphotographer", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<bool> PhotoEmbedWorld = new("photoembedworld", new BasisPlatformDefault<bool>(false));
-        public static BasisSettingsBinding<bool> PhotoEmbedPersonDetails = new("photoembedpersondetails", new BasisPlatformDefault<bool>(false));
+        // Photo metadata settings live in com.basis.camera (BasisPhotoMetadataSettings), same keys.
 
         // ---------------- RAYCAST / INTERACTION VISUALS ----------------
         public static BasisSettingsBinding<float> RaycastLineWidth = new("raycastlinewidth", new BasisPlatformDefault<float>(1f));
@@ -2076,7 +2047,7 @@ namespace Basis.BasisUI
             other = true,
             windows = false,
         });
-        public static BasisSettingsBinding<bool> NPHoverMenuOnly = new("np_hovermenuonly", new BasisPlatformDefault<bool>(false));
+        public static BasisSettingsBinding<bool> NPHoverMenuOnly = new("np_hovermenuonly_v2", new BasisPlatformDefault<bool>(true));
         public static BasisSettingsBinding<float> NPSize = new("np_size", new BasisPlatformDefault<float>(1f));
         public static BasisSettingsBinding<float> NPTransparency = new("np_transparency", new BasisPlatformDefault<float>(0.45f));
         public static BasisSettingsBinding<float> NPSelectDistance = new("np_selectdistance", new BasisPlatformDefault<float>(5f));
@@ -2529,13 +2500,6 @@ namespace Basis.BasisUI
             DebugLogLevelFilter.LoadBindingValue();
             ApplyDebugLogLevelFilter(DebugLogLevelFilter.RawValue);
             DebugLogLevelFilter.OnChanged += ApplyDebugLogLevelFilter;
-            EnableStreamingMeta.LoadBindingValue();
-            StreamingMetaPort.LoadBindingValue();
-            // Bindings are now populated from disk. The streaming runtime bootstraps at
-            // AfterSceneLoad — before this runs — so its initial read saw the default (off),
-            // and LoadBindingValue does not fire OnChanged. Re-apply so the listener comes up
-            // on startup when the user already had it enabled, not only after a manual toggle.
-            BasisStreamingMetaRuntime.ApplyFromSettings();
             MemoryAllocation.LoadBindingValue();
             AvatarRangeIndicator.LoadBindingValue();
             HearingRangeIndicator.LoadBindingValue();
@@ -2679,14 +2643,6 @@ namespace Basis.BasisUI
             MicrophoneIconOffsetX.LoadBindingValue();
             MicrophoneIconOffsetY.LoadBindingValue();
             MicrophoneIconLevelRing.LoadBindingValue();
-
-            // Photo metadata
-            PhotoMetadataTagging.LoadBindingValue();
-            PhotoEmbedCameraSettings.LoadBindingValue();
-            PhotoEmbedCaptureInfo.LoadBindingValue();
-            PhotoEmbedPhotographer.LoadBindingValue();
-            PhotoEmbedWorld.LoadBindingValue();
-            PhotoEmbedPersonDetails.LoadBindingValue();
 
             // Misc
             //FalseBinding.LoadBindingValue();

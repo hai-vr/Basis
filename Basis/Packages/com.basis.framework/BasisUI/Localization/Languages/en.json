@@ -7132,7 +7132,7 @@
     },
     {
       "key": "settings.general.showDeveloperTab.tooltip",
-      "value": "Add the Developer tab to Settings. It holds diagnostics, gizmos, and debug tools that are not needed for normal use."
+      "value": "Show developer options throughout the menu, each in the tab it belongs to. They include diagnostics, gizmos, and debug tools that are not needed for normal use."
     },
     {
       "key": "settings.audio.title",
@@ -7843,10 +7843,6 @@
       "value": "Microphone"
     },
     {
-      "key": "settings.microphone.group.description",
-      "value": "Microphone Related Settings"
-    },
-    {
       "key": "settings.microphone.volume",
       "value": "Microphone Volume"
     },
@@ -7911,10 +7907,6 @@
       "value": "Limiter"
     },
     {
-      "key": "settings.microphone.limiter.description",
-      "value": "Prevents clipping by soft-limiting peaks."
-    },
-    {
       "key": "settings.microphone.limiter.threshold",
       "value": "Limit Threshold"
     },
@@ -7923,28 +7915,12 @@
       "value": "Limit Knee"
     },
     {
-      "key": "settings.microphone.denoiser.title",
-      "value": "Denoiser Tuning"
-    },
-    {
-      "key": "settings.microphone.denoiser.description",
-      "value": "Adjust denoiser blend and makeup gain."
-    },
-    {
       "key": "settings.microphone.denoiser.wet",
       "value": "Denoise Wet"
     },
     {
       "key": "settings.microphone.denoiser.makeup",
       "value": "Denoise Makeup (dB)"
-    },
-    {
-      "key": "settings.microphone.agc.title",
-      "value": "AGC Tuning"
-    },
-    {
-      "key": "settings.microphone.agc.description",
-      "value": "Target loudness and responsiveness (only applies when AGC is enabled)."
     },
     {
       "key": "settings.microphone.agc.targetRms",
@@ -7965,10 +7941,6 @@
     {
       "key": "settings.microphone.noiseGate.title",
       "value": "Noise Gate"
-    },
-    {
-      "key": "settings.microphone.noiseGate.description",
-      "value": "Mutes audio below a threshold to cut background noise."
     },
     {
       "key": "settings.microphone.noiseGate.enable",
@@ -12175,10 +12147,6 @@
       "value": "Logging & Notifications"
     },
     {
-      "key": "settings.developer.group.packages",
-      "value": "Package Tools"
-    },
-    {
       "key": "settings.developer.cilboxProfiler.title",
       "value": "Cilbox Script Performance"
     },
@@ -14827,6 +14795,10 @@
       "value": "Keep its own save data on this device"
     },
     {
+      "key": "settings.cilboxPermissions.cap.readSaves",
+      "value": "Read save data other content shared on this device"
+    },
+    {
       "key": "settings.cilboxPermissions.cap.serverSaves",
       "value": "Keep save data for you on this server"
     },
@@ -14964,7 +14936,11 @@
     },
     {
       "key": "settings.cilboxPermissions.why.saves",
-      "value": "Can keep up to 1 MB of its own save data on this device and read it back on later visits. It cannot reach any other files. Other content that uses the same save name can also read and change that data."
+      "value": "Can keep up to 1 MB of its own save data on this device and read it back on later visits. It cannot reach any other files. Other content that uses the same save name can also read and change that data. It can also publish data that other content can read but not change."
+    },
+    {
+      "key": "settings.cilboxPermissions.why.readSaves",
+      "value": "Can read save data that other content on this device published as read-only, using that content's ID. It cannot change that data or read anything that content kept private."
     },
     {
       "key": "settings.cilboxPermissions.why.serverSaves",
@@ -16393,16 +16369,44 @@
       "value": "Set the gate threshold from your measured room noise instead of a fixed number."
     },
     {
-      "key": "settings.microphone.agc.debug",
-      "value": "AGC Status"
+      "key": "settings.microphone.processing.title",
+      "value": "Voice Processing"
     },
     {
-      "key": "settings.microphone.agc.debug.off",
-      "value": "Automatic gain is off."
+      "key": "settings.microphone.denoiser.title",
+      "value": "Denoiser"
     },
     {
-      "key": "settings.microphone.agc.debug.listening",
-      "value": "Listening for your voice..."
+      "key": "settings.microphone.agc.title",
+      "value": "Auto Gain"
+    },
+    {
+      "key": "settings.microphone.scope.sent",
+      "value": "Sent"
+    },
+    {
+      "key": "settings.microphone.scope.muted",
+      "value": "Muted"
+    },
+    {
+      "key": "settings.microphone.scope.notSent",
+      "value": "Not Sent"
+    },
+    {
+      "key": "settings.microphone.scope.cutGate",
+      "value": "Cut by Noise Gate"
+    },
+    {
+      "key": "settings.microphone.scope.cutDenoiser",
+      "value": "Removed by Denoiser"
+    },
+    {
+      "key": "settings.microphone.scope.cutLimiter",
+      "value": "Cut by Limiter"
+    },
+    {
+      "key": "settings.microphone.scope.target",
+      "value": "Auto Gain Target"
     },
     {
       "key": "settings.performanceMode.title",
@@ -20282,7 +20286,7 @@
     },
     {
       "key": "library.placement.atAnchor.description",
-      "value": "Lands on the spawn anchor selected under Settings > Developer > Spawn Anchors. Without one it falls back to aiming."
+      "value": "Lands on the spawn anchor selected under Settings > Controls > Spawn Anchors (shown when \"Show Developer Tab\" is on). Without one it falls back to aiming."
     },
     {
       "key": "settings.developer.spawnAnchors.positionX",
@@ -20743,6 +20747,10 @@
     {
       "key": "settings.controls.keyboard.pressKey",
       "value": "Press a key..."
+    },
+    {
+      "key": "settings.controls.keyboard.keyInUse",
+      "value": "({0} is already in use)"
     },
     {
       "key": "ui.bodyRole.centerEye",
@@ -21935,6 +21943,10 @@
     {
       "key": "webRequests.prompt.allow",
       "value": "Allow"
+    },
+    {
+      "key": "webRequests.prompt.site",
+      "value": "Site"
     },
     {
       "key": "externalLinks.prompt.link",

@@ -36,8 +36,8 @@ namespace Cilbox
 		[RuntimeInitializeOnLoadMethod]
 		static void Register()
 		{
-			SettingsProvider.DeveloperSectionBuilders.Remove(BuildSection);
-			SettingsProvider.DeveloperSectionBuilders.Add(BuildSection);
+			SettingsProvider.DeveloperSectionBuilders.Remove((Key + "title", BuildSection));
+			SettingsProvider.DeveloperSectionBuilders.Add((Key + "title", BuildSection));
 			SettingsProvider.DeveloperResetActions.Remove(ResetDefaults);
 			SettingsProvider.DeveloperResetActions.Add(ResetDefaults);
 			CilboxProfilerSettings.EnsureLoaded();
@@ -60,7 +60,6 @@ namespace Cilbox
 		{
 			PanelElementDescriptor group = PanelElementDescriptor.CreateNew(PanelElementDescriptor.ElementStyles.Group, container);
 			group.SetBackgroundVisible(false);
-			group.SetTitle(BasisLocalization.Get(Key + "title"));
 			group.SetDescription(BasisLocalization.Get(Key + "description"));
 			PanelToggle enable = PanelToggle.CreateNewEntry(group.ContentParent);
 			enable.Descriptor.SetTitle(BasisLocalization.Get(Key + "enable"));

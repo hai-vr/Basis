@@ -184,13 +184,14 @@ namespace Cilbox
 		internal static string Clean(string value, int max)
 		{
 			if (string.IsNullOrEmpty(value)) return "?";
-			char[] chars = value.ToCharArray();
-			for (int i = 0; i < chars.Length; i++)
+			int slashes = 0;
+			for (int i = 0; i < value.Length; i++) if (value[i] == '\\') slashes++;
+			char[] chars = new char[value.Length + slashes];
+			for (int i = 0, n = 0; i < value.Length; i++)
 			{
-				char c = chars[i];
-				if (c == '<') chars[i] = '[';
-				else if (c == '>') chars[i] = ']';
-				else if (char.IsControl(c)) chars[i] = ' ';
+				char c = value[i];
+				chars[n++] = c == '<' ? '[' : c == '>' ? ']' : char.IsControl(c) ? ' ' : c;
+				if (c == '\\') chars[n++] = CilboxMenus.Joiner;
 			}
 			string clean = new string(chars).Trim();
 			if (clean.Length == 0) return "?";
